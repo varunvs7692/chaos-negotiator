@@ -1,5 +1,15 @@
 # Chaos Negotiator - Architecture & Design
 
+## 🔍 Required Technology Mapping
+
+This solution explicitly uses the required hackathon technologies:
+
+- **Microsoft Foundry / Azure AI**: Azure OpenAI model endpoint for agent reasoning
+- **Agent Framework**: Semantic Kernel-based orchestration in the agent workflow
+- **Azure MCP**: MCP adapter layer for Azure monitoring and deployment integrations
+- **GitHub Copilot**: Assisted development workflow in VS Code
+- **Azure Services**: Container Apps, Azure Monitor, Application Insights, Key Vault
+
 ## 🏗️ System Architecture
 
 ```
