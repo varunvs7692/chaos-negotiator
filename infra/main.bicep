@@ -89,25 +89,15 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   }
 }
 
-// Container App Environment
-resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-preview' = {
+// Reference existing Container App Environment
+resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-preview' existing = {
   name: '${appName}-env'
-  location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalyticsWorkspace.properties.customerId
-        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
-      }
-    }
-  }
 }
 
 // Container App for Chaos Negotiator Agent
 resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   name: appName
-  location: location
+  location: 'eastus'
   identity: {
     type: 'SystemAssigned'
   }

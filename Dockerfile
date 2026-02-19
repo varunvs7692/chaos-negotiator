@@ -5,8 +5,11 @@ FROM python:3.11-slim as builder
 
 WORKDIR /build
 
-# Copy requirements
+# Copy project files
 COPY pyproject.toml .
+COPY chaos_negotiator ./chaos_negotiator
+COPY README.md .
+COPY LICENSE .
 
 # Build wheels
 RUN pip install --upgrade pip && \
