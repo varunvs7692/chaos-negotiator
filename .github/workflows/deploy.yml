@@ -80,7 +80,7 @@ jobs:
         subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
         template: ./infra/main.bicep
-        scope: resourceGroup
+        scope: resourcegroup
         parameters: |
           location=eastus
           environment=prod
