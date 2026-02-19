@@ -70,6 +70,19 @@ jobs:
         login-server: ${{ env.REGISTRY }}
         username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
         password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
+
+    - name: Validate registry URL
+      if: success()
+      run: |
+        if [ -z "${{ env.REGISTRY }}" ]; then
+          echo "Missing AZURE_REGISTRY_URL" && exit 1
+        fi
+        if echo "${{ env.REGISTRY }}" | grep -q "[[:space:]]"; then
+          echo "AZURE_REGISTRY_URL contains whitespace" && exit 1
+        fi
+        if ! echo "${{ env.REGISTRY }}" | grep -qi "\.azurecr\.io$"; then
+          echo "AZURE_REGISTRY_URL must end with .azurecr.io" && exit 1
+        fi
     
     - name: Build Docker image
       if: success()
