@@ -3,9 +3,11 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException  # type: ignore[import-not-found]
+from fastapi.responses import FileResponse  # type: ignore[import-not-found]
 from pydantic import BaseModel
 
 from chaos_negotiator.agent import ChaosNegotiatorAgent
@@ -18,6 +20,8 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+STATIC_INDEX_PATH = Path(__file__).resolve().parent / "static" / "index.html"
 
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
@@ -79,8 +83,16 @@ class AnalysisResponse(BaseModel):
 
 
 @app.get("/")
-async def root() -> dict[str, str]:
-    """Root endpoint."""
+async def root() -> FileResponse | dict[str, str]:
+    """Serve UI homepage; fallback to JSON if static file is missing."""
+    if STATIC_INDEX_PATH.exists():
+        return FileResponse(str(STATIC_INDEX_PATH))
+    return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
+
+
+@app.get("/api")
+async def api_info() -> dict[str, str]:
+    """API info endpoint for programmatic clients."""
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 

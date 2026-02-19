@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chaos Negotiator</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      background: #0b1020;
+      color: #e8ecff;
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .card {
+      background: #121a34;
+      border: 1px solid #263157;
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 10px; font-size: 28px; }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    p { margin: 6px 0 0; color: #aeb8e6; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    label { display: block; font-size: 13px; margin-bottom: 6px; color: #b8c3f0; }
+    input, select, textarea {
+      width: 100%;
+      background: #0f1730;
+      color: #e8ecff;
+      border: 1px solid #2f3b66;
+      border-radius: 10px;
+      padding: 10px;
+      font: inherit;
+    }
+    textarea { min-height: 84px; resize: vertical; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      background: #4a66ff;
+      color: #fff;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary { background: #2b365f; }
+    pre {
+      margin: 0;
+      background: #0a122b;
+      border: 1px solid #273562;
+      border-radius: 10px;
+      padding: 12px;
+      overflow: auto;
+      max-height: 420px;
+    }
+    .status { font-size: 14px; color: #9cb0ff; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Chaos Negotiator</h1>
+      <p>Analyze deployment risk, rollback readiness, and contract guardrails.</p>
+    </div>
+
+    <div class="card">
+      <h2>Deployment Input</h2>
+      <div class="grid">
+        <div>
+          <label for="deploymentId">Deployment ID</label>
+          <input id="deploymentId" value="deploy-ui-001" />
+        </div>
+        <div>
+          <label for="serviceName">Service Name</label>
+          <input id="serviceName" value="user-service" />
+        </div>
+        <div>
+          <label for="environment">Environment</label>
+          <select id="environment">
+            <option value="production">production</option>
+            <option value="staging">staging</option>
+          </select>
+        </div>
+        <div>
+          <label for="version">Version</label>
+          <input id="version" value="v1.0.0" />
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label for="changeDescription">Primary Change Description</label>
+        <textarea id="changeDescription">Optimize cache TTL strategy and update API serialization path.</textarea>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="analyzeBtn">Analyze Deployment</button>
+        <button id="demoDefault" class="secondary">Run Demo: Default</button>
+        <button id="demoHigh" class="secondary">Run Demo: High Risk</button>
+        <button id="demoLow" class="secondary">Run Demo: Low Risk</button>
+      </div>
+      <p class="status" id="status">Ready.</p>
+    </div>
+
+    <div class="card">
+      <h2>Result</h2>
+      <pre id="output">{}</pre>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const outputEl = document.getElementById('output');
+
+    function setStatus(message) { statusEl.textContent = message; }
+    function setOutput(data) { outputEl.textContent = JSON.stringify(data, null, 2); }
+
+    async function callApi(path, method = 'GET', body = null) {
+      setStatus('Working...');
+      try {
+        const res = await fetch(path, {
+          method,
+          headers: body ? { 'Content-Type': 'application/json' } : undefined,
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setStatus(`Error (${res.status})`);
+          setOutput(data);
+          return;
+        }
+        setStatus('Success');
+        setOutput(data);
+      } catch (err) {
+        setStatus('Request failed');
+        setOutput({ error: String(err) });
+      }
+    }
+
+    document.getElementById('analyzeBtn').addEventListener('click', () => {
+      const payload = {
+        deployment_id: document.getElementById('deploymentId').value,
+        service_name: document.getElementById('serviceName').value,
+        environment: document.getElementById('environment').value,
+        version: document.getElementById('version').value,
+        changes: [
+          {
+            file_path: 'src/app/main.py',
+            change_type: 'modify',
+            lines_changed: 42,
+            risk_tags: ['api', 'performance'],
+            description: document.getElementById('changeDescription').value,
+          },
+        ],
+      };
+      callApi('/analyze', 'POST', payload);
+    });
+
+    document.getElementById('demoDefault').addEventListener('click', () => callApi('/demo/default'));
+    document.getElementById('demoHigh').addEventListener('click', () => callApi('/demo/high-risk'));
+    document.getElementById('demoLow').addEventListener('click', () => callApi('/demo/low-risk'));
+  </script>
+</body>
+</html>
