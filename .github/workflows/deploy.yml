@@ -81,10 +81,7 @@ jobs:
         resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
         template: ./infra/main.bicep
         scope: resourcegroup
-        parameters: |
-          location=eastus
-          environment=prod
-          appName=${{ env.AZURE_APP_NAME }}
+        parameters: location=eastus environment=prod appName=${{ env.AZURE_APP_NAME }}
     
     - name: Update Container App
       if: success()
