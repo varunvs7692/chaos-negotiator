@@ -88,7 +88,9 @@ class SemanticKernelOrchestrator:
             self.telemetry.track_event(event_name, properties or {})
             self.telemetry.flush()
 
-    def track_metric(self, name: str, value: float, properties: dict[str, Any] | None = None) -> None:
+    def track_metric(
+        self, name: str, value: float, properties: dict[str, Any] | None = None
+    ) -> None:
         """Track custom metric in Application Insights."""
         if self.telemetry:
             self.telemetry.track_metric(name, value, properties=properties)
