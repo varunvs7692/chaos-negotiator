@@ -3,11 +3,13 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException  # type: ignore[import-not-found]
 from pydantic import BaseModel
 
 from chaos_negotiator.agent import ChaosNegotiatorAgent
+from chaos_negotiator.main import get_example_context
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
 
 # Configure logging
@@ -22,7 +24,7 @@ agent: ChaosNegotiatorAgent | None = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown logic."""
     global agent
     logger.info("Starting Chaos Negotiator server...")
@@ -77,19 +79,30 @@ class AnalysisResponse(BaseModel):
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     """Root endpoint."""
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 
 @app.get("/health")
-async def health():
+async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy" if agent else "unhealthy", agent_ready=agent is not None)
 
 
+def _model_to_dict(value: Any) -> dict[str, Any]:
+    """Convert a Pydantic model or dict to a plain dict."""
+    if value is None:
+        return {}
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if isinstance(value, dict):
+        return value
+    return {"value": str(value)}
+
+
 @app.post("/analyze")
-async def analyze_deployment(request: DeploymentRequest):
+async def analyze_deployment(request: DeploymentRequest) -> AnalysisResponse:
     """Analyze a deployment for risk and contract requirements."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
@@ -108,14 +121,14 @@ async def analyze_deployment(request: DeploymentRequest):
 
         # Run analysis
         logger.info(f"Analyzing deployment {request.deployment_id}...")
-        risk_assessment = agent.predict_risk(context)
-        rollback_plan = agent.validate_rollback(risk_assessment, context)
-        deployment_contract = agent.draft_contract(risk_assessment, rollback_plan)
+        deployment_contract = agent.process_deployment(context)
+        risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
+        rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
 
         return AnalysisResponse(
             deployment_id=request.deployment_id,
-            risk_assessment=risk_assessment.model_dump(),
-            rollback_plan=rollback_plan.model_dump(),
+            risk_assessment=risk_assessment,
+            rollback_plan=rollback_plan,
             deployment_contract=deployment_contract.model_dump(),
         )
 
@@ -125,16 +138,16 @@ async def analyze_deployment(request: DeploymentRequest):
 
 
 @app.get("/demo/{scenario}")
-async def run_demo(scenario: str = "default"):
+async def run_demo(scenario: str = "default") -> dict[str, object]:
     """Run a demo scenario."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     try:
         scenarios = {
-            "default": agent.get_example_context("default"),
-            "high-risk": agent.get_example_context("high-risk"),
-            "low-risk": agent.get_example_context("low-risk"),
+            "default": get_example_context("default"),
+            "high-risk": get_example_context("high_risk"),
+            "low-risk": get_example_context("low_risk"),
         }
 
         if scenario not in scenarios:
@@ -145,15 +158,15 @@ async def run_demo(scenario: str = "default"):
         context = scenarios[scenario]
         logger.info(f"Running demo scenario: {scenario}")
 
-        risk_assessment = agent.predict_risk(context)
-        rollback_plan = agent.validate_rollback(risk_assessment, context)
-        deployment_contract = agent.draft_contract(risk_assessment, rollback_plan)
+        deployment_contract = agent.process_deployment(context)
+        risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
+        rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
 
         return {
             "scenario": scenario,
             "deployment_id": context.deployment_id,
-            "risk_assessment": risk_assessment.model_dump(),
-            "rollback_plan": rollback_plan.model_dump(),
+            "risk_assessment": risk_assessment,
+            "rollback_plan": rollback_plan,
             "deployment_contract": deployment_contract.model_dump(),
         }
 

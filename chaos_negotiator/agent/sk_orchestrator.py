@@ -1,12 +1,12 @@
 """Semantic Kernel orchestration for Chaos Negotiator Agent."""
 
-import os
 import logging
-from typing import Dict, Any
+import os
+from typing import Any
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
 from semantic_kernel.contents import ChatHistory
-from applicationinsights import TelemetryClient
+from applicationinsights import TelemetryClient  # type: ignore[import-untyped]
 
 from chaos_negotiator.models.deployment import DeploymentContext
 from chaos_negotiator.models.contract import DeploymentContract
@@ -29,7 +29,7 @@ class SemanticKernelOrchestrator:
     - Autonomous decision making
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Semantic Kernel with Azure OpenAI."""
         self.kernel = Kernel()
 
@@ -49,7 +49,7 @@ class SemanticKernelOrchestrator:
 
         logger.info("Semantic Kernel orchestrator initialized")
 
-    def _setup_azure_openai(self):
+    def _setup_azure_openai(self) -> None:
         """Configure Azure OpenAI service in Semantic Kernel."""
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         api_key = os.getenv("AZURE_OPENAI_KEY")
@@ -71,7 +71,7 @@ class SemanticKernelOrchestrator:
 
         logger.info(f"Azure OpenAI configured: {deployment}")
 
-    def _setup_telemetry(self):
+    def _setup_telemetry(self) -> None:
         """Initialize Application Insights telemetry."""
         instrumentation_key = os.getenv("APPINSIGHTS_INSTRUMENTATION_KEY")
 
@@ -82,13 +82,13 @@ class SemanticKernelOrchestrator:
             self.telemetry = None
             logger.warning("Application Insights not configured")
 
-    def track_event(self, event_name: str, properties: Dict[str, Any] = None):
+    def track_event(self, event_name: str, properties: dict[str, Any] | None = None) -> None:
         """Track custom event in Application Insights."""
         if self.telemetry:
             self.telemetry.track_event(event_name, properties or {})
             self.telemetry.flush()
 
-    def track_metric(self, name: str, value: float, properties: Dict[str, Any] = None):
+    def track_metric(self, name: str, value: float, properties: dict[str, Any] | None = None) -> None:
         """Track custom metric in Application Insights."""
         if self.telemetry:
             self.telemetry.track_metric(name, value, properties=properties)

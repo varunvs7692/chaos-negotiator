@@ -1,15 +1,17 @@
 """Risk predictor module."""
 
+from typing import Any
+
 from chaos_negotiator.models import DeploymentContext, RiskAssessment, RiskFactor
 
 
 class RiskPredictor:
     """Predicts SLO impact and deployment risk."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.risk_patterns = self._init_patterns()
 
-    def _init_patterns(self) -> dict:
+    def _init_patterns(self) -> dict[str, dict[str, Any]]:
         """Initialize known risk patterns."""
         return {
             "caching": {
@@ -61,7 +63,7 @@ class RiskPredictor:
                         )
 
         # Calculate risk score (0-100)
-        base_score = len(context.changes) * 2  # 2 points per change
+        base_score: float = len(context.changes) * 2.0  # 2 points per change
         base_score += len(risk_assessment.identified_factors) * 15
         base_score += min(context.total_lines_changed / 10, 20)  # Up to 20 points for size
 

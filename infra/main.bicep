@@ -150,7 +150,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
       containers: [
         {
           name: appName
-          image: '${containerRegistry.properties.loginServer}/${appName}:latest'
+          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
           env: [
             {
               name: 'AZURE_OPENAI_KEY'

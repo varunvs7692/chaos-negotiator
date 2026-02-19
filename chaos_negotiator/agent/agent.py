@@ -5,7 +5,13 @@ import os
 from datetime import datetime
 from typing import Optional
 from openai import AzureOpenAI
-from chaos_negotiator.models import DeploymentContext, DeploymentContract
+from openai.types.chat import ChatCompletionMessageParam
+from chaos_negotiator.models import (
+    DeploymentContext,
+    DeploymentContract,
+    Guardrail,
+    GuardrailRequirement,
+)
 from chaos_negotiator.predictors import RiskPredictor
 from chaos_negotiator.validators import RollbackValidator
 from chaos_negotiator.contracts import ContractEngine
@@ -45,6 +51,8 @@ class ChaosNegotiatorAgent:
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 
         # Initialize client if credentials are available
+        self.client: AzureOpenAI | None
+        self.model: str | None
         if api_key and endpoint:
             self.client = AzureOpenAI(api_key=api_key, azure_endpoint=endpoint)
             self.model = "gpt-4"  # Use your deployed model name from Azure OpenAI
@@ -59,6 +67,7 @@ class ChaosNegotiatorAgent:
             self.is_mock_mode = True
 
         # Initialize Semantic Kernel orchestrator if available and requested
+        self.sk_orchestrator: SemanticKernelOrchestrator | None
         if SK_AVAILABLE and use_semantic_kernel:
             try:
                 self.sk_orchestrator = SemanticKernelOrchestrator()
@@ -79,7 +88,7 @@ class ChaosNegotiatorAgent:
         self.rollback_validator = RollbackValidator()
         self.contract_engine = ContractEngine()
 
-        self.conversation_history = []
+        self.conversation_history: list[ChatCompletionMessageParam] = []
 
     async def process_deployment_async(self, context: DeploymentContext) -> DeploymentContract:
         """Process deployment using Semantic Kernel orchestration (async)."""
@@ -199,19 +208,27 @@ Required validators:
             assistant_message = f"[Test Mode] I've reviewed your deployment for {context.service_name}. The contract requires all guardrails to be met before proceeding. Please ensure your deployment passes the validators."
         else:
             # Real Azure OpenAI response
+            if self.client is None or self.model is None:
+                raise RuntimeError("Azure OpenAI client is not configured")
+            messages: list[ChatCompletionMessageParam] = [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Chaos Negotiator, a deployment safety negotiator. Be concise and "
+                        "firm on critical safety items. Service: "
+                        f"{context.service_name}, Risk Level: {contract.predicted_risk_level}"
+                    ),
+                }
+            ]
+            messages.extend(self.conversation_history[-10:])
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=1024,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": f"You are Chaos Negotiator, a deployment safety negotiator. Be concise and firm on critical safety items. Service: {context.service_name}, Risk Level: {contract.predicted_risk_level}",
-                    },
-                    *self.conversation_history[-10:],  # Keep conversation focused
-                ],
+                messages=messages,
             )
 
-            assistant_message = response.choices[0].message.content
+            assistant_message = response.choices[0].message.content or ""
 
         self.conversation_history.append({"role": "assistant", "content": assistant_message})
 
@@ -221,7 +238,10 @@ Required validators:
         """Format guardrails for display."""
         lines = []
         for g in contract.guardrails:
-            lines.append(f"  - {g.guardrail_type.value}: {g.max_value}{g.unit}")
+            if isinstance(g, GuardrailRequirement):
+                lines.append(f"  - {g.guardrail_type.value}: {g.max_value}{g.unit}")
+            elif isinstance(g, Guardrail):
+                lines.append(f"  - {g.metric_name}: {g.comparison} {g.threshold}")
         return "\n".join(lines) or "  (none)"
 
     def _format_validators(self, contract: DeploymentContract) -> str:

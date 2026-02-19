@@ -139,7 +139,7 @@ def get_example_context(scenario: str = "default") -> DeploymentContext:
     return scenarios.get(scenario, scenarios["default"])
 
 
-async def run_full_demo(scenario: str = "default"):
+async def run_full_demo(scenario: str = "default") -> None:
     """Run full demo with enforcement simulation."""
     logger.info("🚀 Chaos Negotiator - Full Demo with Enforcement")
     logger.info("=" * 60)
@@ -195,7 +195,7 @@ async def run_full_demo(scenario: str = "default"):
     logger.info(f"📄 Contract saved to: {contract_output}")
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     logger.info("🚀 Chaos Negotiator - Deployment Contract AI Agent")
     logger.info("=" * 60)

@@ -96,19 +96,19 @@ class EnforcementSimulator:
                     },
                 )()
 
+        max_error_rate_obj = guardrails_dict.get("max_error_rate_percent")
         max_error_rate = (
-            guardrails_dict.get("max_error_rate_percent").threshold
-            if "max_error_rate_percent" in guardrails_dict
+            float(max_error_rate_obj.threshold)
+            if max_error_rate_obj and hasattr(max_error_rate_obj, "threshold")
             else 0.5
         )
+        max_p95_obj = guardrails_dict.get("max_p95_latency_ms") or guardrails_dict.get(
+            "max_latency_p95_ms"
+        )
         max_p95_latency = (
-            guardrails_dict.get("max_p95_latency_ms").threshold
-            if "max_p95_latency_ms" in guardrails_dict
-            else (
-                guardrails_dict.get("max_latency_p95_ms").threshold
-                if "max_latency_p95_ms" in guardrails_dict
-                else 300.0
-            )
+            float(max_p95_obj.threshold)
+            if max_p95_obj and hasattr(max_p95_obj, "threshold")
+            else 300.0
         )
 
         # Baseline metrics (from deployment_context or use defaults)

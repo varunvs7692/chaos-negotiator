@@ -3,6 +3,7 @@
 from chaos_negotiator.models import (
     DeploymentContext,
     DeploymentContract,
+    Guardrail,
     GuardrailRequirement,
     GuardrailType,
     ValidatorRequirement,
@@ -49,9 +50,9 @@ class ContractEngine:
 
     def _build_guardrails(
         self, context: DeploymentContext, risk: RiskAssessment
-    ) -> list[GuardrailRequirement]:
+    ) -> list[GuardrailRequirement | Guardrail]:
         """Build guardrails based on risk assessment."""
-        guardrails = []
+        guardrails: list[GuardrailRequirement | Guardrail] = []
 
         # Error rate guardrail (stricter for higher risk)
         if risk.risk_level == "critical":
@@ -222,9 +223,14 @@ class ContractEngine:
         ]
 
         for guardrail in contract.guardrails:
-            lines.append(
-                f"  - {guardrail.guardrail_type.value}: < {guardrail.max_value} {guardrail.unit}"
-            )
+            if isinstance(guardrail, GuardrailRequirement):
+                lines.append(
+                    f"  - {guardrail.guardrail_type.value}: < {guardrail.max_value} {guardrail.unit}"
+                )
+            else:
+                lines.append(
+                    f"  - {guardrail.metric_name}: {guardrail.comparison} {guardrail.threshold}"
+                )
 
         lines.append("")
         lines.append("VALIDATORS (PROOF REQUIRED):")

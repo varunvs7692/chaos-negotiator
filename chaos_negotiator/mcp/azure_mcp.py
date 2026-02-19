@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Dict, Any, List
+from typing import Any
 from datetime import datetime, timedelta
 from azure.identity import DefaultAzureCredential
 from azure.monitor.query import LogsQueryClient, LogsQueryStatus
@@ -19,7 +19,7 @@ class AzureMCPClient:
     for enforcement of deployment contracts.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Azure clients."""
         self.credential = DefaultAzureCredential()
         self.logs_client = LogsQueryClient(self.credential)
@@ -29,8 +29,8 @@ class AzureMCPClient:
             logger.warning("AZURE_MONITOR_WORKSPACE_ID not set. Using mock data.")
 
     async def get_current_metrics(
-        self, resource_id: str, metric_names: List[str], time_window_minutes: int = 5
-    ) -> Dict[str, Any]:
+        self, resource_id: str, metric_names: list[str], time_window_minutes: int = 5
+    ) -> dict[str, Any]:
         """
         Get current metrics for a service from Azure Monitor.
 
@@ -89,7 +89,7 @@ class AzureMCPClient:
             logger.error(f"Error querying Azure Monitor: {e}")
             return self._get_mock_metrics()
 
-    def _get_mock_metrics(self) -> Dict[str, Any]:
+    def _get_mock_metrics(self) -> dict[str, Any]:
         """Return mock metrics for demo/testing."""
         return {
             "error_rate_percent": 0.05,
@@ -104,7 +104,7 @@ class AzureMCPClient:
         self,
         service_name: str,
         limit: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get recent deployment history from Azure.
 
@@ -159,7 +159,7 @@ class AzureMCPClient:
         service_name: str,
         version: str,
         traffic_percentage: float,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Trigger canary deployment through orchestration.
 
@@ -187,10 +187,10 @@ class AzureMCPClient:
     async def monitor_deployment(
         self,
         deployment_id: str,
-        guardrail_thresholds: Dict[str, float],
+        guardrail_thresholds: dict[str, float],
         check_interval_seconds: int = 10,
         max_checks: int = 30,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Monitor deployment against guardrails in real-time.
 
@@ -271,7 +271,7 @@ class AzureMCPClient:
 class ManagedIdentityHandler:
     """Handles managed identity for Azure."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.credential = DefaultAzureCredential()
 
     async def get_auth_token(self, scope: str) -> str:
