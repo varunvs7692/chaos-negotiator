@@ -7,6 +7,7 @@ from chaos_negotiator.models.deployment import (
 )
 from chaos_negotiator.models.contract import (
     DeploymentContract,
+    Guardrail,
     GuardrailRequirement,
     GuardrailType,
     ValidatorRequirement,
@@ -19,6 +20,7 @@ __all__ = [
     "DeploymentChange",
     "ServiceDependency",
     "DeploymentContract",
+    "Guardrail",
     "GuardrailRequirement",
     "GuardrailType",
     "ValidatorRequirement",

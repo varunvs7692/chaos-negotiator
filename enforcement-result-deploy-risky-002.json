@@ -1,0 +1,78 @@
+{
+  "status": "rolled_back",
+  "reason": "guardrail_violation",
+  "violation": {
+    "metric": "error_rate_percent",
+    "actual": 0.2097338895212435,
+    "threshold": 0.2,
+    "timestamp": "2026-02-19T09:02:15.575357",
+    "traffic_percentage": 50
+  },
+  "metrics_history": [
+    {
+      "timestamp": "2026-02-19T09:02:12.527378",
+      "error_rate_percent": 0.0513,
+      "p95_latency_ms": 102.1,
+      "p99_latency_ms": 224.62,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    },
+    {
+      "timestamp": "2026-02-19T09:02:13.040517",
+      "error_rate_percent": 0.0401,
+      "p95_latency_ms": 108.6,
+      "p99_latency_ms": 238.91,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    },
+    {
+      "timestamp": "2026-02-19T09:02:13.554082",
+      "error_rate_percent": 0.0645,
+      "p95_latency_ms": 108.84,
+      "p99_latency_ms": 239.46,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    },
+    {
+      "timestamp": "2026-02-19T09:02:14.059513",
+      "error_rate_percent": 0.0445,
+      "p95_latency_ms": 104.13,
+      "p99_latency_ms": 229.08,
+      "qps": 1250.0,
+      "traffic_percentage": 25
+    },
+    {
+      "timestamp": "2026-02-19T09:02:14.560266",
+      "error_rate_percent": 0.0502,
+      "p95_latency_ms": 100.5,
+      "p99_latency_ms": 221.1,
+      "qps": 1250.0,
+      "traffic_percentage": 25
+    },
+    {
+      "timestamp": "2026-02-19T09:02:15.074175",
+      "error_rate_percent": 0.0523,
+      "p95_latency_ms": 113.28,
+      "p99_latency_ms": 249.22,
+      "qps": 1250.0,
+      "traffic_percentage": 25
+    },
+    {
+      "timestamp": "2026-02-19T09:02:15.575357",
+      "error_rate_percent": 0.2097,
+      "p95_latency_ms": 116.73,
+      "p99_latency_ms": 256.8,
+      "qps": 2500.0,
+      "traffic_percentage": 50
+    }
+  ],
+  "traffic_reached": 50,
+  "rollback": {
+    "status": "failed",
+    "time_seconds": 0,
+    "steps_executed": 0,
+    "data_loss_risk": "unknown",
+    "error": "Rollback plan not available"
+  },
+  "deployment_id": "deploy-risky-002"
+}

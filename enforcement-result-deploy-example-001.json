@@ -1,0 +1,105 @@
+{
+  "status": "success",
+  "reason": "all_guardrails_met",
+  "metrics_history": [
+    {
+      "timestamp": "2026-02-19T08:59:55.966070",
+      "error_rate_percent": 0.0657,
+      "p95_latency_ms": 99.15,
+      "p99_latency_ms": 218.13,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    },
+    {
+      "timestamp": "2026-02-19T08:59:56.479984",
+      "error_rate_percent": 0.0571,
+      "p95_latency_ms": 109.09,
+      "p99_latency_ms": 240.0,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    },
+    {
+      "timestamp": "2026-02-19T08:59:56.981392",
+      "error_rate_percent": 0.0667,
+      "p95_latency_ms": 110.65,
+      "p99_latency_ms": 243.44,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    },
+    {
+      "timestamp": "2026-02-19T08:59:57.496062",
+      "error_rate_percent": 0.0551,
+      "p95_latency_ms": 113.43,
+      "p99_latency_ms": 249.55,
+      "qps": 1250.0,
+      "traffic_percentage": 25
+    },
+    {
+      "timestamp": "2026-02-19T08:59:58.009106",
+      "error_rate_percent": 0.0606,
+      "p95_latency_ms": 101.64,
+      "p99_latency_ms": 223.6,
+      "qps": 1250.0,
+      "traffic_percentage": 25
+    },
+    {
+      "timestamp": "2026-02-19T08:59:58.510238",
+      "error_rate_percent": 0.0578,
+      "p95_latency_ms": 114.39,
+      "p99_latency_ms": 251.66,
+      "qps": 1250.0,
+      "traffic_percentage": 25
+    },
+    {
+      "timestamp": "2026-02-19T08:59:59.011781",
+      "error_rate_percent": 0.0663,
+      "p95_latency_ms": 119.43,
+      "p99_latency_ms": 262.74,
+      "qps": 2500.0,
+      "traffic_percentage": 50
+    },
+    {
+      "timestamp": "2026-02-19T08:59:59.513664",
+      "error_rate_percent": 0.0564,
+      "p95_latency_ms": 108.7,
+      "p99_latency_ms": 239.15,
+      "qps": 2500.0,
+      "traffic_percentage": 50
+    },
+    {
+      "timestamp": "2026-02-19T09:00:00.025072",
+      "error_rate_percent": 0.0467,
+      "p95_latency_ms": 105.66,
+      "p99_latency_ms": 232.46,
+      "qps": 2500.0,
+      "traffic_percentage": 50
+    },
+    {
+      "timestamp": "2026-02-19T09:00:00.536189",
+      "error_rate_percent": 0.0542,
+      "p95_latency_ms": 118.37,
+      "p99_latency_ms": 260.41,
+      "qps": 5000.0,
+      "traffic_percentage": 100
+    },
+    {
+      "timestamp": "2026-02-19T09:00:01.049916",
+      "error_rate_percent": 0.0417,
+      "p95_latency_ms": 125.48,
+      "p99_latency_ms": 276.07,
+      "qps": 5000.0,
+      "traffic_percentage": 100
+    },
+    {
+      "timestamp": "2026-02-19T09:00:01.564540",
+      "error_rate_percent": 0.0635,
+      "p95_latency_ms": 129.2,
+      "p99_latency_ms": 284.24,
+      "qps": 5000.0,
+      "traffic_percentage": 100
+    }
+  ],
+  "traffic_reached": 100,
+  "violations": [],
+  "deployment_id": "deploy-example-001"
+}

@@ -33,6 +33,13 @@ dependencies = [
     "aiohttp>=3.9.0",
     "pyyaml>=6.0",
     "structlog>=24.1.0",
+    # Microsoft Agent Framework
+    "semantic-kernel>=1.0.0",
+    # Azure MCP & Monitoring
+    "applicationinsights>=0.11.10",
+    "mcp>=1.0.0",
+    # Additional utilities
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]

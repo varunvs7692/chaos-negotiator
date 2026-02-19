@@ -1,7 +1,7 @@
 """Deployment contract models."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any, Union
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -24,6 +24,14 @@ class GuardrailRequirement(BaseModel):
     unit: str  # '%', 'ms', 'rps', etc.
     description: str
     enforcement_window_seconds: int = 300
+
+
+class Guardrail(BaseModel):
+    """Simplified guardrail for enforcement (compatible with older code)."""
+
+    metric_name: str
+    threshold: float
+    comparison: str = "less_than"  # 'less_than', 'greater_than', 'equals'
 
 
 class ValidatorRequirement(BaseModel):
@@ -97,8 +105,8 @@ class DeploymentContract(BaseModel):
     risk_score: float  # 0-100
     risk_summary: str
 
-    # Guardrails (the terms)
-    guardrails: list[GuardrailRequirement] = Field(default_factory=list)
+    # Guardrails (the terms) - accepts both GuardrailRequirement and Guardrail
+    guardrails: list[Union[GuardrailRequirement, "Guardrail"]] = Field(default_factory=list)
 
     # Validators (proof requirements)
     validators: list[ValidatorRequirement] = Field(default_factory=list)
@@ -121,3 +129,9 @@ class DeploymentContract(BaseModel):
 
     # Detailed reasoning
     reasoning: str = ""
+    
+    # Optional nested structures (for agent-generated contracts)
+    deployment_context: Optional[Any] = None  # DeploymentContext
+    risk_assessment: Optional[Any] = None  # RiskAssessment
+    rollback_plan: Optional[Any] = None  # RollbackPlan
+    approval_status: str = "pending"  # 'pending', 'approved', 'rejected'

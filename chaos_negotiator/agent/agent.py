@@ -10,6 +10,14 @@ from chaos_negotiator.predictors import RiskPredictor
 from chaos_negotiator.validators import RollbackValidator
 from chaos_negotiator.contracts import ContractEngine
 
+# Import Semantic Kernel orchestrator
+try:
+    from chaos_negotiator.agent.sk_orchestrator import SemanticKernelOrchestrator
+    SK_AVAILABLE = True
+except ImportError:
+    SK_AVAILABLE = False
+    logging.warning("Semantic Kernel not available, using legacy mode")
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,10 +29,17 @@ class ChaosNegotiatorAgent:
     - Predicts SLO impact (risk assessment)
     - Validates rollback capability
     - Drafts enforceable deployment contracts
+    
+    Uses Microsoft Semantic Kernel for agentic orchestration when available.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the agent with Azure OpenAI client."""
+    def __init__(self, api_key: Optional[str] = None, use_semantic_kernel: bool = True):
+        """Initialize the agent with Azure OpenAI client.
+        
+        Args:
+            api_key: Azure OpenAI API key (defaults to env var)
+            use_semantic_kernel: Whether to use SK orchestration (default: True)
+        """
         api_key = api_key or os.getenv("AZURE_OPENAI_KEY")
         endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 
@@ -42,16 +57,41 @@ class ChaosNegotiatorAgent:
             self.model = None
             self.is_mock_mode = True
 
-        # Initialize sub-engines
+        # Initialize Semantic Kernel orchestrator if available and requested
+        if SK_AVAILABLE and use_semantic_kernel:
+            try:
+                self.sk_orchestrator = SemanticKernelOrchestrator()
+                self.use_sk = True
+                logger.info("Semantic Kernel orchestration enabled")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Semantic Kernel: {e}")
+                self.sk_orchestrator = None
+                self.use_sk = False
+        else:
+            self.sk_orchestrator = None
+            self.use_sk = False
+            if not SK_AVAILABLE:
+                logger.info("Semantic Kernel not available, using legacy orchestration")
+
+        # Initialize sub-engines (used by both SK and legacy modes)
         self.risk_predictor = RiskPredictor()
         self.rollback_validator = RollbackValidator()
         self.contract_engine = ContractEngine()
 
         self.conversation_history = []
 
+    async def process_deployment_async(self, context: DeploymentContext) -> DeploymentContract:
+        """Process deployment using Semantic Kernel orchestration (async)."""
+        if self.use_sk and self.sk_orchestrator:
+            logger.info("Using Semantic Kernel orchestration")
+            return await self.sk_orchestrator.orchestrate_deployment(context)
+        else:
+            logger.info("Using legacy orchestration")
+            return self.process_deployment(context)
+
     def process_deployment(self, context: DeploymentContext) -> DeploymentContract:
         """
-        Process a deployment request and negotiate a contract.
+        Process a deployment request and negotiate a contract (synchronous).
 
         Returns:
             DeploymentContract with all negotiation details
