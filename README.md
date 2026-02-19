@@ -1,6 +1,8 @@
 # Chaos Negotiator
 > *AI Agent for Deployment Contracts* — Treat every deploy like a contract between developers and reliability goals.
 
+**🌐 Live Deployment:** [https://chaos-negotiator.happycoast-63bd2242.eastus.azurecontainerapps.io/](https://chaos-negotiator.happycoast-63bd2242.eastus.azurecontainerapps.io/)
+
 [![Test & Lint](https://github.com/varunvs7692/chaos-negotiator/actions/workflows/test.yml/badge.svg)](https://github.com/varunvs7692/chaos-negotiator/actions)
 [![Deploy to Azure](https://github.com/varunvs7692/chaos-negotiator/actions/workflows/deploy.yml/badge.svg)](https://github.com/varunvs7692/chaos-negotiator/actions)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)

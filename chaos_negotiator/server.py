@@ -82,7 +82,7 @@ class AnalysisResponse(BaseModel):
     deployment_contract: dict
 
 
-@app.get("/")
+@app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
     """Serve UI homepage; fallback to JSON if static file is missing."""
     if STATIC_INDEX_PATH.exists():
