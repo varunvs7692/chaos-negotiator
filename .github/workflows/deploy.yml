@@ -124,11 +124,14 @@ jobs:
       if: success()
       run: |
         KV_NAME=$(echo "${{ env.AZURE_APP_NAME }}-kv" | tr -d '-')
-        az keyvault secret set \
-          --vault-name "$KV_NAME" \
-          --name "azure-openai-key" \
-          --value "${{ secrets.AZURE_OPENAI_KEY }}"
-        az keyvault secret set \
-          --vault-name "$KV_NAME" \
-          --name "azure-openai-endpoint" \
-          --value "${{ secrets.AZURE_OPENAI_ENDPOINT }}"
+        for i in {1..12}; do
+          if az keyvault secret set --vault-name "$KV_NAME" --name "azure-openai-key" --value "${{ secrets.AZURE_OPENAI_KEY }}" >/dev/null 2>&1 \
+            && az keyvault secret set --vault-name "$KV_NAME" --name "azure-openai-endpoint" --value "${{ secrets.AZURE_OPENAI_ENDPOINT }}" >/dev/null 2>&1; then
+            echo "Key Vault secrets set successfully."
+            exit 0
+          fi
+          echo "Key Vault RBAC not ready yet (attempt $i/12). Waiting 15s..."
+          sleep 15
+        done
+        echo "Failed to set Key Vault secrets after retries."
+        exit 1
