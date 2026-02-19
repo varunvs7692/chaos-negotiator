@@ -1,0 +1,57 @@
+{
+  "deployment_id": "deploy-example-prod-001",
+  "service_name": "payment-service",
+  "environment": "production",
+  "version": "v3.0.0",
+  "changes": [
+    {
+      "file_path": "src/processor/payment_processor.py",
+      "change_type": "modify",
+      "lines_changed": 120,
+      "risk_tags": ["payment", "database", "critical"],
+      "description": "Refactor payment processing with new database schema for transaction tracking"
+    },
+    {
+      "file_path": "src/cache/redis_client.py",
+      "change_type": "modify",
+      "lines_changed": 45,
+      "risk_tags": ["caching", "performance"],
+      "description": "Update Redis client with improved caching strategy for frequently accessed data"
+    },
+    {
+      "file_path": "src/api/handlers.py",
+      "change_type": "modify",
+      "lines_changed": 78,
+      "risk_tags": ["api", "latency"],
+      "description": "Optimize API response serialization using protobuf format"
+    }
+  ],
+  "total_lines_changed": 243,
+  "current_error_rate_percent": 0.02,
+  "current_p95_latency_ms": 200.0,
+  "current_p99_latency_ms": 450.0,
+  "target_error_rate_percent": 0.1,
+  "target_p95_latency_ms": 300.0,
+  "target_p99_latency_ms": 800.0,
+  "current_qps": 15000.0,
+  "peak_qps": 25000.0,
+  "owner_team": "Platform & Payments Team",
+  "reviewers": ["lead@example.com", "reliability@example.com"],
+  "rollback_capability": true,
+  "dependencies": [
+    {
+      "service_name": "database",
+      "service_type": "database",
+      "criticality": "critical",
+      "average_latency_ms": 50.0,
+      "error_rate_percent": 0.01
+    },
+    {
+      "service_name": "cache-service",
+      "service_type": "cache",
+      "criticality": "high",
+      "average_latency_ms": 5.0,
+      "error_rate_percent": 0.05
+    }
+  ]
+}

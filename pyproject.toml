@@ -1,0 +1,71 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chaos-negotiator"
+version = "0.1.0"
+description = "AI agent that treats every deploy like a contract between developers and reliability goals"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Chaos Negotiator Team"}
+]
+keywords = ["devops", "ai-agent", "deployment", "reliability", "slo", "contract"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "openai>=1.0.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "azure-identity>=1.14.0",
+    "azure-monitor-query>=1.4.0",
+    "azure-containerregistry>=1.2.0",
+    "aiohttp>=3.9.0",
+    "pyyaml>=6.0",
+    "structlog>=24.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+azure = [
+    "azure-devops>=7.1.0",
+    "azure-mgmt-containerregistry>=10.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/varunvs7692/chaos-negotiator"
+Documentation = "https://github.com/varunvs7692/chaos-negotiator/wiki"
+Repository = "https://github.com/varunvs7692/chaos-negotiator.git"
+
+[tool.setuptools]
+packages = ["chaos_negotiator"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+disallow_untyped_defs = true
+warn_unused_configs = true
