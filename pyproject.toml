@@ -33,6 +33,9 @@ dependencies = [
     "aiohttp>=3.9.0",
     "pyyaml>=6.0",
     "structlog>=24.1.0",
+    # HTTP Server & Framework
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
     # Microsoft Agent Framework
     "semantic-kernel>=1.0.0",
     # Azure MCP & Monitoring
