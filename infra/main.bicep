@@ -16,10 +16,11 @@ param keyVaultName string = '${appName}-kv'
 
 @secure()
 @description('Azure OpenAI API key for runtime configuration')
-param azureOpenAiKey string = 'placeholder-key'
+param azureOpenAiKey string
 
+@secure()
 @description('Azure OpenAI endpoint URL for runtime configuration')
-param azureOpenAiEndpoint string = 'https://example.openai.azure.com/'
+param azureOpenAiEndpoint string
 
 // Container Registry
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
