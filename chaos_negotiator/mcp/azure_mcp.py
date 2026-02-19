@@ -3,7 +3,7 @@
 import logging
 from typing import Dict, Any
 from azure.identity import DefaultAzureCredential
-from azure.monitor.query import MetricsQueryClient
+from azure.monitor.query import LogsQueryClient
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,7 @@ class AzureMCPClient:
     def __init__(self):
         """Initialize Azure clients."""
         self.credential = DefaultAzureCredential()
-        self.metrics_client = MetricsQueryClient(self.credential)
+        self.logs_client = LogsQueryClient(self.credential)
 
     async def get_current_metrics(
         self,
