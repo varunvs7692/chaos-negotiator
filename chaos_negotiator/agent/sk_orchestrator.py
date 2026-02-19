@@ -2,10 +2,9 @@
 
 import os
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.open_ai import AzureChatCompletion
-from semantic_kernel.connectors.ai.function_choice_behavior import FunctionChoiceBehavior
 from semantic_kernel.contents import ChatHistory
 from applicationinsights import TelemetryClient
 

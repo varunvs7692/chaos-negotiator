@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any,List, Optional
 from dataclasses import dataclass
 
-from chaos_negotiator.models.contract import DeploymentContract, Guardrail
+from chaos_negotiator.models.contract import DeploymentContract
 from chaos_negotiator.mcp.azure_mcp import AzureMCPClient
 
 logger = logging.getLogger(__name__)
@@ -257,7 +257,7 @@ class EnforcementSimulator:
                 "error": "Rollback plan not available"
             }
         
-        logger.info(f"Executing rollback procedure:")
+        logger.info("Executing rollback procedure:")
         steps = rollback_plan.steps if rollback_plan.steps else []
         for idx, step in enumerate(steps):
             logger.info(f"  Step {idx + 1}: {step.description if hasattr(step, 'description') else step}")
@@ -317,7 +317,7 @@ async def run_enforcement_demo(
     )
     
     print(f"\n{'='*60}")
-    print(f"DEPLOYMENT ENFORCEMENT SIMULATION")
+    print("DEPLOYMENT ENFORCEMENT SIMULATION")
     print(f"{'='*60}")
     print(f"Deployment ID: {deployment_id}")
     print(f"Scenario: {scenario}")
@@ -333,14 +333,14 @@ async def run_enforcement_demo(
     print(f"Metrics collected: {len(result['metrics_history'])} data points")
     
     if result['status'] == 'rolled_back':
-        print(f"\n🔴 ROLLBACK TRIGGERED")
+        print("\n🔴 ROLLBACK TRIGGERED")
         print(f"Reason: {result['violation']['metric']} exceeded threshold")
         print(f"Actual: {result['violation']['actual']:.3f}")
         print(f"Threshold: {result['violation']['threshold']:.3f}")
         print(f"Rollback time: ~{result['rollback']['time_seconds']}s")
     else:
-        print(f"\n✅ DEPLOYMENT SUCCESSFUL")
-        print(f"All guardrails met throughout deployment")
+        print("\n✅ DEPLOYMENT SUCCESSFUL")
+        print("All guardrails met throughout deployment")
     
     print(f"{'='*60}\n")
     

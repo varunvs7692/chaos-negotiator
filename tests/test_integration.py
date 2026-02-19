@@ -1,7 +1,6 @@
 """Integration tests for new Semantic Kernel and enforcement features."""
 
 import pytest
-import asyncio
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
 from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.enforcement import EnforcementSimulator
