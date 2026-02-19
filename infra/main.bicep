@@ -3,7 +3,7 @@ param environment string = 'prod'
 param appName string = 'chaos-negotiator'
 
 @description('Container registry name for deploying the agent')
-param containerRegistryName string = 'chaosnegroregistry'
+param containerRegistryName string = 'chaosnegroreg13921'
 
 @description('Application Insights for monitoring')
 param appInsightsName string = '${appName}-insights'
