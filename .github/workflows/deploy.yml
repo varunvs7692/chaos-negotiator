@@ -82,6 +82,21 @@ jobs:
       run: |
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
         docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+    - name: Wait for Container App provisioning
+      if: success()
+      run: |
+        for i in {1..30}; do
+          state=$(az containerapp show --name ${{ env.AZURE_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query properties.provisioningState -o tsv || echo "Unknown")
+          if [ "$state" = "Succeeded" ]; then
+            echo "Container App ready."
+            exit 0
+          fi
+          echo "Provisioning state: $state (attempt $i/30). Waiting..."
+          sleep 10
+        done
+        echo "Container App still provisioning after wait."
+        exit 1
     
     - name: Update Container App
       if: success()
