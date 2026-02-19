@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown logic."""
     global agent
     logger.info("Starting Chaos Negotiator server...")
-    
+
     # Initialize agent on startup
     try:
         agent = ChaosNegotiatorAgent()
@@ -34,9 +34,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize agent: {e}")
         agent = None
-    
+
     yield
-    
+
     logger.info("Shutting down Chaos Negotiator server...")
 
 
@@ -52,6 +52,7 @@ app = FastAPI(
 # Request/Response models
 class DeploymentRequest(BaseModel):
     """Deployment context for analysis."""
+
     deployment_id: str
     service_name: str
     environment: str
@@ -61,12 +62,14 @@ class DeploymentRequest(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str
     agent_ready: bool
 
 
 class AnalysisResponse(BaseModel):
     """Deployment analysis response."""
+
     deployment_id: str
     risk_assessment: dict
     rollback_plan: dict
@@ -76,20 +79,13 @@ class AnalysisResponse(BaseModel):
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {
-        "message": "Chaos Negotiator AI Agent",
-        "docs": "/docs",
-        "status": "running"
-    }
+    return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 
 @app.get("/health")
 async def health():
     """Health check endpoint."""
-    return HealthResponse(
-        status="healthy" if agent else "unhealthy",
-        agent_ready=agent is not None
-    )
+    return HealthResponse(status="healthy" if agent else "unhealthy", agent_ready=agent is not None)
 
 
 @app.post("/analyze")
@@ -97,13 +93,11 @@ async def analyze_deployment(request: DeploymentRequest):
     """Analyze a deployment for risk and contract requirements."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
-    
+
     try:
         # Convert request to DeploymentContext
-        changes = [
-            DeploymentChange(**change) for change in request.changes
-        ]
-        
+        changes = [DeploymentChange(**change) for change in request.changes]
+
         context = DeploymentContext(
             deployment_id=request.deployment_id,
             service_name=request.service_name,
@@ -111,20 +105,20 @@ async def analyze_deployment(request: DeploymentRequest):
             version=request.version,
             changes=changes,
         )
-        
+
         # Run analysis
         logger.info(f"Analyzing deployment {request.deployment_id}...")
         risk_assessment = agent.predict_risk(context)
         rollback_plan = agent.validate_rollback(risk_assessment, context)
         deployment_contract = agent.draft_contract(risk_assessment, rollback_plan)
-        
+
         return AnalysisResponse(
             deployment_id=request.deployment_id,
             risk_assessment=risk_assessment.model_dump(),
             rollback_plan=rollback_plan.model_dump(),
             deployment_contract=deployment_contract.model_dump(),
         )
-    
+
     except Exception as e:
         logger.error(f"Error analyzing deployment: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
@@ -135,27 +129,26 @@ async def run_demo(scenario: str = "default"):
     """Run a demo scenario."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
-    
+
     try:
         scenarios = {
             "default": agent.get_example_context("default"),
             "high-risk": agent.get_example_context("high-risk"),
             "low-risk": agent.get_example_context("low-risk"),
         }
-        
+
         if scenario not in scenarios:
             raise HTTPException(
-                status_code=400,
-                detail=f"Unknown scenario. Valid: {list(scenarios.keys())}"
+                status_code=400, detail=f"Unknown scenario. Valid: {list(scenarios.keys())}"
             )
-        
+
         context = scenarios[scenario]
         logger.info(f"Running demo scenario: {scenario}")
-        
+
         risk_assessment = agent.predict_risk(context)
         rollback_plan = agent.validate_rollback(risk_assessment, context)
         deployment_contract = agent.draft_contract(risk_assessment, rollback_plan)
-        
+
         return {
             "scenario": scenario,
             "deployment_id": context.deployment_id,
@@ -163,7 +156,7 @@ async def run_demo(scenario: str = "default"):
             "rollback_plan": rollback_plan.model_dump(),
             "deployment_contract": deployment_contract.model_dump(),
         }
-    
+
     except Exception as e:
         logger.error(f"Error running demo: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
@@ -171,10 +164,10 @@ async def run_demo(scenario: str = "default"):
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     port = int(os.getenv("PORT", "8000"))
     logger.info(f"Starting server on port {port}")
-    
+
     uvicorn.run(
         app,
         host="0.0.0.0",

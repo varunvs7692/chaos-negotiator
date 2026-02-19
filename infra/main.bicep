@@ -108,7 +108,7 @@ resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-p
 // Container App for Chaos Negotiator Agent
 resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   name: appName
-  location: 'eastus'
+  location: location
   identity: {
     type: 'SystemAssigned'
   }

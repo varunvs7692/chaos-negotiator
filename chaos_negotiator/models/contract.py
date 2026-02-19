@@ -129,7 +129,7 @@ class DeploymentContract(BaseModel):
 
     # Detailed reasoning
     reasoning: str = ""
-    
+
     # Optional nested structures (for agent-generated contracts)
     deployment_context: Optional[Any] = None  # DeploymentContext
     risk_assessment: Optional[Any] = None  # RiskAssessment

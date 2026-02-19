@@ -13,6 +13,7 @@ from chaos_negotiator.contracts import ContractEngine
 # Import Semantic Kernel orchestrator
 try:
     from chaos_negotiator.agent.sk_orchestrator import SemanticKernelOrchestrator
+
     SK_AVAILABLE = True
 except ImportError:
     SK_AVAILABLE = False
@@ -29,13 +30,13 @@ class ChaosNegotiatorAgent:
     - Predicts SLO impact (risk assessment)
     - Validates rollback capability
     - Drafts enforceable deployment contracts
-    
+
     Uses Microsoft Semantic Kernel for agentic orchestration when available.
     """
 
     def __init__(self, api_key: Optional[str] = None, use_semantic_kernel: bool = True):
         """Initialize the agent with Azure OpenAI client.
-        
+
         Args:
             api_key: Azure OpenAI API key (defaults to env var)
             use_semantic_kernel: Whether to use SK orchestration (default: True)

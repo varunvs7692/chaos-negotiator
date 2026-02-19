@@ -10,6 +10,7 @@ from chaos_negotiator.models import DeploymentContext, DeploymentChange
 # Import enforcement simulator for demo
 try:
     from chaos_negotiator.enforcement import run_enforcement_demo
+
     ENFORCEMENT_AVAILABLE = True
 except ImportError:
     ENFORCEMENT_AVAILABLE = False
@@ -39,7 +40,7 @@ def load_deployment_context(filepath: str) -> DeploymentContext:
 
 def get_example_context(scenario: str = "default") -> DeploymentContext:
     """Get example deployment context for different scenarios."""
-    
+
     scenarios = {
         "default": DeploymentContext(
             deployment_id="deploy-example-001",
@@ -74,7 +75,6 @@ def get_example_context(scenario: str = "default") -> DeploymentContext:
             owner_team="Platform Team",
             rollback_capability=True,
         ),
-        
         "high_risk": DeploymentContext(
             deployment_id="deploy-risky-002",
             service_name="payment-processor",
@@ -108,7 +108,6 @@ def get_example_context(scenario: str = "default") -> DeploymentContext:
             owner_team="Payments Team",
             rollback_capability=False,  # No rollback for DB migration
         ),
-        
         "low_risk": DeploymentContext(
             deployment_id="deploy-safe-003",
             service_name="logging-service",
@@ -136,7 +135,7 @@ def get_example_context(scenario: str = "default") -> DeploymentContext:
             rollback_capability=True,
         ),
     }
-    
+
     return scenarios.get(scenario, scenarios["default"])
 
 
@@ -144,43 +143,43 @@ async def run_full_demo(scenario: str = "default"):
     """Run full demo with enforcement simulation."""
     logger.info("🚀 Chaos Negotiator - Full Demo with Enforcement")
     logger.info("=" * 60)
-    
+
     # Get context
     context = get_example_context(scenario)
     logger.info(f"Scenario: {scenario}")
     logger.info(f"Service: {context.service_name} v{context.version}")
-    
+
     # Initialize agent with SK
     agent = ChaosNegotiatorAgent(use_semantic_kernel=True)
-    
+
     # Process deployment with SK orchestration
     logger.info("\n📋 Step 1/2: Generating Deployment Contract")
     logger.info("=" * 60)
     contract = await agent.process_deployment_async(context)
-    
+
     # Print contract summary
     print("\n" + contract.reasoning[:1000] + "...\n")  # Truncate for display
-    
+
     if ENFORCEMENT_AVAILABLE:
         # Run enforcement simulation
         logger.info("\n🎯 Step 2/2: Simulating Deployment Enforcement")
         logger.info("=" * 60)
-        
+
         # Ask which scenario to simulate
         print("\nSelect enforcement scenario:")
         print("1. Success (all guardrails met)")
         print("2. Error spike (triggers rollback)")
         print("3. Latency spike (triggers rollback)")
-        
+
         try:
             choice = input("\nChoice (1-3, default=1): ").strip() or "1"
             enforcement_scenarios = {"1": "success", "2": "error_spike", "3": "latency_spike"}
             enforcement_scenario = enforcement_scenarios.get(choice, "success")
         except (EOFError, KeyboardInterrupt):
             enforcement_scenario = "success"
-        
+
         result = await run_enforcement_demo(contract, enforcement_scenario)
-        
+
         # Save results
         result_file = f"enforcement-result-{context.deployment_id}.json"
         with open(result_file, "w") as f:
@@ -188,7 +187,7 @@ async def run_full_demo(scenario: str = "default"):
         logger.info(f"\n📄 Enforcement results saved to: {result_file}")
     else:
         logger.warning("Enforcement simulator not available - skipping enforcement demo")
-    
+
     # Save contract
     contract_output = f"contract-{context.deployment_id}.json"
     with open(contract_output, "w") as f:
@@ -200,14 +199,14 @@ def main():
     """Main entry point."""
     logger.info("🚀 Chaos Negotiator - Deployment Contract AI Agent")
     logger.info("=" * 60)
-    
+
     # Check for demo mode
     if len(sys.argv) > 1 and sys.argv[1] == "--demo":
         scenario = sys.argv[2] if len(sys.argv) > 2 else "default"
         logger.info(f"Running full demo with scenario: {scenario}")
         asyncio.run(run_full_demo(scenario))
         return 0
-    
+
     # Check for file input
     if len(sys.argv) > 1 and sys.argv[1].endswith(".json"):
         # Load from file
@@ -272,4 +271,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
