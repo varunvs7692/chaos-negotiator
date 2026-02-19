@@ -10,6 +10,31 @@ This solution explicitly uses the required hackathon technologies:
 - **GitHub Copilot**: Assisted development workflow in VS Code
 - **Azure Services**: Container Apps, Azure Monitor, Application Insights, Key Vault
 
+## 🧭 Submission Diagram (Mermaid)
+
+```mermaid
+flowchart TD
+   A[Developer in VS Code\nGitHub Copilot Assisted Coding] --> B[GitHub Repository\nPR + GitHub Actions CI/CD]
+   B --> C[Chaos Negotiator Agent\nAzure Container Apps]
+
+   C --> D[Agent Framework\nSemantic Kernel Orchestration]
+   D --> E[Microsoft Foundry / Azure OpenAI\nRisk + Contract Reasoning]
+
+   C --> F[Azure MCP Adapter]
+   F --> G[Azure Monitor\nSLO / Canary Metrics]
+   F --> H[Application Insights\nTelemetry + Audit Trail]
+   F --> I[Azure Key Vault\nSecrets + Credentials]
+
+   C --> J[Deployment Contract]
+   J --> K[Guardrails + Validators + Rollback Terms]
+   K --> L[Live Enforcement\nCanary Progression]
+   L --> M{Guardrail Violated?}
+   M -- No --> N[Promote to 100% Traffic]
+   M -- Yes --> O[Automatic Rollback]
+```
+
+Use this diagram in the submission to show explicit use of Microsoft Foundry, Agent Framework, Azure MCP, GitHub Copilot, and Azure services.
+
 ## 🏗️ System Architecture
 
 ```

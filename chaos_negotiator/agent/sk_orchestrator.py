@@ -140,7 +140,7 @@ class SemanticKernelOrchestrator:
             logger.info("Step 2/3: Validating rollback...")
             rollback_plan = await self._validate_rollback_agentic(context)
             
-            self.track_metric("rollback_time_seconds", rollback_plan.estimated_rollback_time_seconds, {
+            self.track_metric("rollback_time_seconds", rollback_plan.total_estimated_time_seconds, {
                 "deployment_id": context.deployment_id
             })
             
@@ -155,7 +155,7 @@ class SemanticKernelOrchestrator:
             # Track successful orchestration
             self.track_event("DeploymentContractGenerated", {
                 "deployment_id": context.deployment_id,
-                "risk_level": contract.risk_assessment.risk_level,
+                "risk_level": contract.predicted_risk_level,
                 "guardrails_count": len(contract.guardrails),
                 "approval_status": contract.approval_status
             })
@@ -188,7 +188,7 @@ class SemanticKernelOrchestrator:
         - Generates confidence-scored predictions
         """
         # Use existing risk predictor (enhanced with SK in future)
-        risk = self.risk_predictor.predict_risk(context)
+        risk = self.risk_predictor.predict(context)
         
         # Add to chat history for context retention
         self.chat_history.add_user_message(
@@ -210,10 +210,11 @@ class SemanticKernelOrchestrator:
         - Estimates recovery time
         - Identifies data loss risks
         """
-        rollback = self.rollback_validator.validate_rollback(context)
+        risk = self.risk_predictor.predict(context)
+        rollback = self.rollback_validator.validate_and_create(context, risk)
         
         self.chat_history.add_assistant_message(
-            f"Rollback validated: {rollback.estimated_rollback_time_seconds}s recovery, "
+            f"Rollback validated: {rollback.total_estimated_time_seconds}s recovery, "
             f"data loss risk: {rollback.data_loss_risk}"
         )
         
@@ -233,7 +234,7 @@ class SemanticKernelOrchestrator:
         - Risk-proportional constraints
         - Mitigation suggestions
         """
-        contract = self.contract_engine.generate_contract(
+        contract = self.contract_engine.draft_contract(
             context=context,
             risk_assessment=risk_assessment,
             rollback_plan=rollback_plan

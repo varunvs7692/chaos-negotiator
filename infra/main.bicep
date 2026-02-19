@@ -8,8 +8,18 @@ param containerRegistryName string = 'chaosnegroregistry'
 @description('Application Insights for monitoring')
 param appInsightsName string = '${appName}-insights'
 
+@description('Log Analytics workspace for Container Apps logs')
+param logAnalyticsWorkspaceName string = '${appName}-law'
+
 @description('Key Vault for secrets management')
 param keyVaultName string = '${appName}-kv'
+
+@secure()
+@description('Azure OpenAI API key for runtime configuration')
+param azureOpenAiKey string = 'placeholder-key'
+
+@description('Azure OpenAI endpoint URL for runtime configuration')
+param azureOpenAiEndpoint string = 'https://example.openai.azure.com/'
 
 // Container Registry
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
@@ -30,7 +40,22 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   kind: 'web'
   properties: {
     Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
     RetentionInDays: 30
+    publicNetworkAccessForIngestion: 'Enabled'
+    publicNetworkAccessForQuery: 'Enabled'
+  }
+}
+
+// Log Analytics workspace
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: replace(logAnalyticsWorkspaceName, '-', '')
+  location: location
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
     publicNetworkAccessForIngestion: 'Enabled'
     publicNetworkAccessForQuery: 'Enabled'
   }
@@ -72,8 +97,8 @@ resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-11-02-p
     appLogsConfiguration: {
       destination: 'log-analytics'
       logAnalyticsConfiguration: {
-        customerId: appInsights.properties.CustomerId
-        sharedKey: appInsights.properties.InstrumentationKey
+        customerId: logAnalyticsWorkspace.properties.customerId
+        sharedKey: logAnalyticsWorkspace.listKeys().primarySharedKey
       }
     }
   }
@@ -97,7 +122,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
       registries: [
         {
           server: containerRegistry.properties.loginServer
-          username: containerRegistry.properties.loginServer
+          username: containerRegistry.listCredentials().username
           passwordSecretRef: 'registry-password'
         }
       ]
@@ -108,11 +133,11 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
         }
         {
           name: 'azure-openai-key'
-          value: ''  // Set via pipeline
+          value: azureOpenAiKey
         }
         {
           name: 'azure-openai-endpoint'
-          value: ''  // Set via pipeline
+          value: azureOpenAiEndpoint
         }
         {
           name: 'app-insights-key'

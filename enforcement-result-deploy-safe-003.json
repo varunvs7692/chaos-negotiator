@@ -1,0 +1,30 @@
+{
+  "status": "rolled_back",
+  "reason": "guardrail_violation",
+  "violation": {
+    "metric": "p95_latency_ms",
+    "actual": 100.58950798532493,
+    "threshold": 100.0,
+    "timestamp": "2026-02-19T09:32:10.106402",
+    "traffic_percentage": 5
+  },
+  "metrics_history": [
+    {
+      "timestamp": "2026-02-19T09:32:10.106402",
+      "error_rate_percent": 0.0562,
+      "p95_latency_ms": 100.59,
+      "p99_latency_ms": 221.3,
+      "qps": 250.0,
+      "traffic_percentage": 5
+    }
+  ],
+  "traffic_reached": 5,
+  "rollback": {
+    "status": "failed",
+    "time_seconds": 0,
+    "steps_executed": 0,
+    "data_loss_risk": "unknown",
+    "error": "Rollback plan not available"
+  },
+  "deployment_id": "deploy-safe-003"
+}

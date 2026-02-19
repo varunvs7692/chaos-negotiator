@@ -23,7 +23,7 @@ Most deployment controls are binary. Reliability isn't. This solution treats dep
 ```
 DEPLOYMENT REQUEST
         ↓
-[ChaosNegotiatorAgent - Claude-backed]
+[ChaosNegotiatorAgent - Semantic Kernel + Azure OpenAI]
     ├─ RiskPredictor: Analyzes changes → Risk Score (0-100)
     ├─ RollbackValidator: Tests rollback capability
     ├─ ContractEngine: Drafts guardrails + validators
@@ -122,7 +122,7 @@ DEPLOYMENT REQUEST
 - Feature flags: Required for database changes
 
 ### 5. Negotiable Terms
-The agent handles deployment concerns via Claude:
+The agent handles deployment concerns via Azure OpenAI reasoning:
 - Explains SLO risks
 - Suggests concrete mitigations
 - Enforces non-negotiable safety requirements
@@ -181,7 +181,7 @@ SUGGESTED IMPROVEMENTS:
 
 ### ✅ Core Requirements
 
-- **✅ AI-powered solution** → Uses Claude for intelligent negotiation
+- **✅ AI-powered solution** → Uses Azure OpenAI + Semantic Kernel for intelligent negotiation
 - **✅ Deployed to Azure** → Bicep infrastructure + Container Apps target
 - **✅ GitHub repository** → Public repo with CI/CD
 - **✅ Production-ready** → Tests, error handling, logging, security
@@ -192,7 +192,7 @@ SUGGESTED IMPROVEMENTS:
 - **SLO-aware risk prediction** with confidence scoring
 - **Automatic guardrail generation** proportional to risk
 - **Smart rollback validation** with auto-generated steps
-- **Agentic negotiation** using Claude for developer interaction
+- **Agentic negotiation** using Semantic Kernel orchestration for developer interaction
 
 ## 📁 Project Structure
 
@@ -200,7 +200,7 @@ SUGGESTED IMPROVEMENTS:
 chaos-negotiator/
 ├── chaos_negotiator/          # Core package
 │   ├── agent/                 # AI Agent orchestration
-│   │   └── agent.py           # Main ChaosNegotiatorAgent (Claude-backed)
+│   │   └── agent.py           # Main ChaosNegotiatorAgent (Semantic Kernel + Azure OpenAI)
 │   ├── contracts/             # Contract generation engine
 │   │   └── contract_engine.py
 │   ├── models/                # Pydantic data models
