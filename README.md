@@ -227,4 +227,6 @@ Issues & PRs welcome! Check [GitHub Issues](https://github.com/varunvs7692/chaos
 
 ---
 
+© 2026 Varun Sahu. All rights reserved.
+
 **Built for reliability. Negotiated with intent.** 🚀
