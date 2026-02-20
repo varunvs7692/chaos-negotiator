@@ -35,17 +35,19 @@
     }
 
     .wrap {
-      max-width: 1100px;
+      max-width: 1220px;
       margin: 0 auto;
-      padding: 28px 18px 32px;
+      padding: 28px 18px 36px;
     }
 
     .hero {
-      background: linear-gradient(135deg, #101a36 0%, #1a2a55 55%, #273874 100%);
+      background:
+        radial-gradient(circle at 78% 15%, rgba(145, 176, 255, 0.24), transparent 38%),
+        linear-gradient(135deg, #101a36 0%, #1a2a55 55%, #273874 100%);
       border: 1px solid #32467f;
       border-radius: 18px;
-      padding: 20px;
-      margin-bottom: 18px;
+      padding: 22px;
+      margin-bottom: 16px;
       box-shadow: 0 20px 35px rgba(0, 0, 0, 0.35);
     }
 
@@ -63,18 +65,37 @@
       line-height: 1.5;
     }
 
+    .meta {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      font-size: 12px;
+      color: #d3deff;
+      background: rgba(13, 23, 47, 0.62);
+      border: 1px solid #3a518f;
+      padding: 6px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.2px;
+    }
+
     .layout {
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: 1.08fr 0.92fr;
       gap: 16px;
+      align-items: start;
     }
 
     .card {
       background: rgba(15, 24, 48, 0.9);
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 16px;
+      padding: 18px;
       backdrop-filter: blur(5px);
+      box-shadow: 0 16px 26px rgba(1, 8, 20, 0.35);
     }
 
     .card h2 {
@@ -134,7 +155,7 @@
     }
 
     .actions {
-      margin-top: 12px;
+      margin-top: 14px;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
@@ -148,7 +169,7 @@
       color: #fff;
       background: #2d3f73;
       cursor: pointer;
-      transition: transform .04s ease, background-color .15s ease;
+      transition: transform .04s ease, background-color .15s ease, box-shadow .15s ease;
     }
 
     button:active { transform: translateY(1px); }
@@ -156,6 +177,7 @@
 
     button.primary {
       background: var(--brand);
+      box-shadow: 0 8px 22px rgba(88, 118, 255, 0.35);
     }
 
     button.primary:hover {
@@ -198,6 +220,9 @@
       border: 1px solid #2a3a68;
       border-radius: 12px;
       overflow: hidden;
+      min-height: 460px;
+      display: flex;
+      flex-direction: column;
     }
 
     .result-head {
@@ -214,14 +239,26 @@
     pre {
       margin: 0;
       padding: 12px;
-      max-height: 430px;
+      max-height: 560px;
       overflow: auto;
       font-size: 12px;
       line-height: 1.45;
       color: #dfe8ff;
+      flex: 1;
+    }
+
+    .aside-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #9fb0e4;
+      line-height: 1.45;
     }
 
     @media (max-width: 820px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
       .grid {
         grid-template-columns: 1fr;
       }
@@ -240,10 +277,15 @@
         Evaluate deployment risk, enforce reliability guardrails, and generate a deployment contract
         before changes go live.
       </p>
+      <div class="meta">
+        <span class="chip">SLO-Aware Analysis</span>
+        <span class="chip">Rollback Validation</span>
+        <span class="chip">Contract Guardrails</span>
+      </div>
     </section>
 
     <section class="layout">
-      <article class="card">
+      <article class="card main-panel">
         <h2>Deployment Input</h2>
         <p class="hint">Fill in the deployment details and run analysis or quick demo scenarios.</p>
 
@@ -295,7 +337,7 @@
         </div>
       </article>
 
-      <article class="card">
+      <article class="card result-panel">
         <h2>Result</h2>
         <p class="hint">Latest API response for your analysis request.</p>
         <div class="result-wrap">
@@ -305,6 +347,7 @@
           </div>
           <pre id="output">{}</pre>
         </div>
+        <p class="aside-note">Tip: Use the demo buttons first, then switch to custom deployment input for your real scenarios.</p>
       </article>
     </section>
   </main>
