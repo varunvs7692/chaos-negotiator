@@ -22,6 +22,9 @@ param azureOpenAiKey string
 @description('Azure OpenAI endpoint URL for runtime configuration')
 param azureOpenAiEndpoint string
 
+@description('Azure OpenAI API version for SDK compatibility')
+param openAiApiVersion string = '2024-02-15-preview'
+
 // Container Registry
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: replace(containerRegistryName, '-', '')
@@ -167,6 +170,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             {
               name: 'ENVIRONMENT'
               value: environment
+            }
+            {
+              name: 'OPENAI_API_VERSION'
+              value: openAiApiVersion
             }
           ]
           resources: {

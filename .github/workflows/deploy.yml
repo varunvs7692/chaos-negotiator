@@ -11,6 +11,7 @@ env:
   AZURE_RESOURCE_GROUP: chaos-negotiator-rg
   AZURE_APP_NAME: chaos-negotiator
   AZURE_REGISTRY_NAME: chaosnegroreg13921
+  AZURE_OPENAI_API_VERSION: 2024-02-15-preview
 
 jobs:
   build-and-deploy:
@@ -63,7 +64,7 @@ jobs:
         resourceGroupName: ${{ env.AZURE_RESOURCE_GROUP }}
         template: ./infra/main.bicep
         scope: resourcegroup
-        parameters: location=eastus environment=prod appName=${{ env.AZURE_APP_NAME }} containerRegistryName=${{ env.AZURE_REGISTRY_NAME }} azureOpenAiKey="${{ secrets.AZURE_OPENAI_KEY }}" azureOpenAiEndpoint="${{ secrets.AZURE_OPENAI_ENDPOINT }}"
+        parameters: location=eastus environment=prod appName=${{ env.AZURE_APP_NAME }} containerRegistryName=${{ env.AZURE_REGISTRY_NAME }} azureOpenAiKey="${{ secrets.AZURE_OPENAI_KEY }}" azureOpenAiEndpoint="${{ secrets.AZURE_OPENAI_ENDPOINT }}" openAiApiVersion=${{ env.AZURE_OPENAI_API_VERSION }}
     
     - name: Login to Azure Container Registry
       uses: azure/docker-login@v1
