@@ -1,12 +1,13 @@
 """FastAPI HTTP server for Chaos Negotiator agent."""
 
+import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, Header, HTTPException  # type: ignore[import-not-found]
+from fastapi import FastAPI, Header, HTTPException, Request, Response  # type: ignore[import-not-found]
 from fastapi.responses import FileResponse  # type: ignore[import-not-found]
 from pydantic import BaseModel
 
@@ -53,6 +54,17 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next: Any) -> Response:
+    """Apply baseline security headers to all HTTP responses."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    return response
 
 
 # Request/Response models
@@ -118,7 +130,7 @@ def _require_api_key_if_configured(x_api_key: str | None) -> None:
     configured_key = os.getenv("API_AUTH_KEY", "").strip()
     if not configured_key:
         return
-    if not x_api_key or x_api_key != configured_key:
+    if not x_api_key or not hmac.compare_digest(x_api_key, configured_key):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -159,7 +171,7 @@ async def analyze_deployment(
 
     except Exception as e:
         logger.error(f"Error analyzing deployment: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Failed to analyze deployment")
 
 
 @app.get("/demo/{scenario}")
@@ -201,7 +213,7 @@ async def run_demo(
 
     except Exception as e:
         logger.error(f"Error running demo: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail="Failed to run demo scenario")
 
 
 if __name__ == "__main__":
