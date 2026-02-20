@@ -5,152 +5,353 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Chaos Negotiator</title>
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg: #070b16;
+      --bg-soft: #0d1428;
+      --panel: #111a33;
+      --panel-2: #182446;
+      --text: #e8eeff;
+      --muted: #aab8e8;
+      --line: #2a3968;
+      --brand: #5d7cff;
+      --brand-hover: #6c88ff;
+      --ok: #1dc97f;
+      --err: #ff7a7a;
+      --warn: #ffbf69;
+    }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       font-family: Inter, Segoe UI, Arial, sans-serif;
-      background: #0b1020;
-      color: #e8ecff;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 0%, #1a2754 0%, transparent 35%),
+        radial-gradient(circle at 90% 100%, #13203d 0%, transparent 40%),
+        var(--bg);
       min-height: 100vh;
     }
+
     .wrap {
-      max-width: 980px;
+      max-width: 1100px;
       margin: 0 auto;
-      padding: 24px;
+      padding: 28px 18px 32px;
     }
+
+    .hero {
+      background: linear-gradient(135deg, #101a36 0%, #1a2a55 55%, #273874 100%);
+      border: 1px solid #32467f;
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 20px 35px rgba(0, 0, 0, 0.35);
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.15;
+      letter-spacing: 0.3px;
+    }
+
+    .hero p {
+      margin: 10px 0 0;
+      color: #d2dcff;
+      max-width: 760px;
+      line-height: 1.5;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
     .card {
-      background: #121a34;
-      border: 1px solid #263157;
-      border-radius: 14px;
-      padding: 18px;
-      margin-bottom: 16px;
+      background: rgba(15, 24, 48, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      backdrop-filter: blur(5px);
     }
-    h1 { margin: 0 0 10px; font-size: 28px; }
-    h2 { margin: 0 0 12px; font-size: 18px; }
-    p { margin: 6px 0 0; color: #aeb8e6; }
-    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    label { display: block; font-size: 13px; margin-bottom: 6px; color: #b8c3f0; }
+
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 18px;
+    }
+
+    .hint {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-wide {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 12px;
+      color: #c6d3ff;
+      letter-spacing: 0.2px;
+    }
+
     input, select, textarea {
       width: 100%;
-      background: #0f1730;
-      color: #e8ecff;
-      border: 1px solid #2f3b66;
+      background: var(--bg-soft);
+      color: var(--text);
+      border: 1px solid #33487e;
       border-radius: 10px;
-      padding: 10px;
+      padding: 10px 11px;
       font: inherit;
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
-    textarea { min-height: 84px; resize: vertical; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(93, 124, 255, 0.2);
+    }
+
+    textarea {
+      min-height: 92px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    .actions {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
     button {
       border: 0;
       border-radius: 10px;
-      background: #4a66ff;
-      color: #fff;
-      padding: 10px 14px;
+      padding: 10px 13px;
       font-weight: 600;
+      color: #fff;
+      background: #2d3f73;
       cursor: pointer;
+      transition: transform .04s ease, background-color .15s ease;
     }
-    button.secondary { background: #2b365f; }
+
+    button:active { transform: translateY(1px); }
+    button:hover { background: #344b89; }
+
+    button.primary {
+      background: var(--brand);
+    }
+
+    button.primary:hover {
+      background: var(--brand-hover);
+    }
+
+    .status-bar {
+      margin-top: 12px;
+      border: 1px solid #3a4c84;
+      background: #101a35;
+      border-radius: 10px;
+      padding: 9px 11px;
+      font-size: 13px;
+      color: #c7d4ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--warn);
+      box-shadow: 0 0 0 4px rgba(255, 191, 105, 0.14);
+    }
+
+    .status-bar.ok .dot {
+      background: var(--ok);
+      box-shadow: 0 0 0 4px rgba(29, 201, 127, 0.16);
+    }
+
+    .status-bar.err .dot {
+      background: var(--err);
+      box-shadow: 0 0 0 4px rgba(255, 122, 122, 0.16);
+    }
+
+    .result-wrap {
+      background: #0b1228;
+      border: 1px solid #2a3a68;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .result-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #283960;
+      background: #111a35;
+      font-size: 12px;
+      color: #b8c7f7;
+    }
+
     pre {
       margin: 0;
-      background: #0a122b;
-      border: 1px solid #273562;
-      border-radius: 10px;
       padding: 12px;
+      max-height: 430px;
       overflow: auto;
-      max-height: 420px;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #dfe8ff;
     }
-    .status { font-size: 14px; color: #9cb0ff; }
+
+    @media (max-width: 820px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero h1 {
+        font-size: 26px;
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
+  <main class="wrap">
+    <section class="hero">
       <h1>Chaos Negotiator</h1>
-      <p>Analyze deployment risk, rollback readiness, and contract guardrails.</p>
-    </div>
+      <p>
+        Evaluate deployment risk, enforce reliability guardrails, and generate a deployment contract
+        before changes go live.
+      </p>
+    </section>
 
-    <div class="card">
-      <h2>Deployment Input</h2>
-      <div class="grid">
-        <div>
-          <label for="deploymentId">Deployment ID</label>
-          <input id="deploymentId" value="deploy-ui-001" />
-        </div>
-        <div>
-          <label for="serviceName">Service Name</label>
-          <input id="serviceName" value="user-service" />
-        </div>
-        <div>
-          <label for="environment">Environment</label>
-          <select id="environment">
-            <option value="production">production</option>
-            <option value="staging">staging</option>
-          </select>
-        </div>
-        <div>
-          <label for="version">Version</label>
-          <input id="version" value="v1.0.0" />
-        </div>
-        <div>
-          <label for="apiKey">API Key (optional)</label>
-          <input id="apiKey" type="password" placeholder="Needed only if API auth is enabled" />
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <label for="changeDescription">Primary Change Description</label>
-        <textarea id="changeDescription">Optimize cache TTL strategy and update API serialization path.</textarea>
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <button id="analyzeBtn">Analyze Deployment</button>
-        <button id="demoDefault" class="secondary">Run Demo: Default</button>
-        <button id="demoHigh" class="secondary">Run Demo: High Risk</button>
-        <button id="demoLow" class="secondary">Run Demo: Low Risk</button>
-      </div>
-      <p class="status" id="status">Ready.</p>
-    </div>
+    <section class="layout">
+      <article class="card">
+        <h2>Deployment Input</h2>
+        <p class="hint">Fill in the deployment details and run analysis or quick demo scenarios.</p>
 
-    <div class="card">
-      <h2>Result</h2>
-      <pre id="output">{}</pre>
-    </div>
-  </div>
+        <div class="grid">
+          <div class="field">
+            <label for="deploymentId">Deployment ID</label>
+            <input id="deploymentId" value="deploy-ui-001" />
+          </div>
+
+          <div class="field">
+            <label for="serviceName">Service Name</label>
+            <input id="serviceName" value="user-service" />
+          </div>
+
+          <div class="field">
+            <label for="environment">Environment</label>
+            <select id="environment">
+              <option value="production">production</option>
+              <option value="staging">staging</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="version">Version</label>
+            <input id="version" value="v1.0.0" />
+          </div>
+
+          <div class="field field-wide">
+            <label for="apiKey">API Key (optional)</label>
+            <input id="apiKey" type="password" placeholder="Required only when API auth is enabled" />
+          </div>
+
+          <div class="field field-wide">
+            <label for="changeDescription">Primary Change Description</label>
+            <textarea id="changeDescription">Optimize cache TTL strategy and update API serialization path.</textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="analyzeBtn" class="primary">Analyze Deployment</button>
+          <button id="demoDefault">Demo: Default</button>
+          <button id="demoHigh">Demo: High Risk</button>
+          <button id="demoLow">Demo: Low Risk</button>
+        </div>
+
+        <div class="status-bar" id="statusBar">
+          <span class="dot" id="statusDot"></span>
+          <span id="status">Ready.</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2>Result</h2>
+        <p class="hint">Latest API response for your analysis request.</p>
+        <div class="result-wrap">
+          <div class="result-head">
+            <span>JSON Output</span>
+            <span id="resultStamp">No requests yet</span>
+          </div>
+          <pre id="output">{}</pre>
+        </div>
+      </article>
+    </section>
+  </main>
 
   <script>
     const statusEl = document.getElementById('status');
+    const statusBarEl = document.getElementById('statusBar');
     const outputEl = document.getElementById('output');
+    const resultStampEl = document.getElementById('resultStamp');
 
-    function setStatus(message) { statusEl.textContent = message; }
-    function setOutput(data) { outputEl.textContent = JSON.stringify(data, null, 2); }
+    function setStatus(message, tone = 'idle') {
+      statusEl.textContent = message;
+      statusBarEl.classList.remove('ok', 'err');
+      if (tone === 'ok') statusBarEl.classList.add('ok');
+      if (tone === 'err') statusBarEl.classList.add('err');
+    }
+
+    function setOutput(data) {
+      outputEl.textContent = JSON.stringify(data, null, 2);
+      resultStampEl.textContent = new Date().toLocaleTimeString();
+    }
 
     async function callApi(path, method = 'GET', body = null) {
-      setStatus('Working...');
+      setStatus('Running request...', 'idle');
       try {
         const apiKey = document.getElementById('apiKey').value.trim();
         const headers = {};
-        if (body) {
-          headers['Content-Type'] = 'application/json';
-        }
-        if (apiKey) {
-          headers['X-API-Key'] = apiKey;
-        }
+        if (body) headers['Content-Type'] = 'application/json';
+        if (apiKey) headers['X-API-Key'] = apiKey;
 
         const res = await fetch(path, {
           method,
           headers: Object.keys(headers).length ? headers : undefined,
           body: body ? JSON.stringify(body) : undefined,
         });
+
         const data = await res.json();
         if (!res.ok) {
-          setStatus(`Error (${res.status})`);
+          setStatus(`Request failed (${res.status})`, 'err');
           setOutput(data);
           return;
         }
-        setStatus('Success');
+
+        setStatus('Request completed successfully.', 'ok');
         setOutput(data);
       } catch (err) {
-        setStatus('Request failed');
+        setStatus('Request failed. Check server/network.', 'err');
         setOutput({ error: String(err) });
       }
     }
