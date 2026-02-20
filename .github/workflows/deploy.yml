@@ -120,6 +120,26 @@ jobs:
           --name ${{ env.AZURE_APP_NAME }} \
           --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
           --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Post-deploy smoke test
+      if: success()
+      run: |
+        APP_FQDN=$(az containerapp show --name ${{ env.AZURE_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)
+        if [ -z "$APP_FQDN" ]; then
+          echo "Failed to resolve Container App FQDN"
+          exit 1
+        fi
+
+        APP_URL="https://$APP_FQDN"
+        echo "Running smoke tests against $APP_URL"
+
+        curl -fsS "$APP_URL/api" >/dev/null
+
+        ANALYZE_BODY='{"deployment_id":"smoke-deploy","service_name":"smoke-service","environment":"staging","version":"v0.0.1","changes":[{"file_path":"src/smoke.py","change_type":"modify","lines_changed":1,"risk_tags":["test"],"description":"CI smoke test"}]}'
+
+        curl -fsS -X POST "$APP_URL/analyze" \
+          -H "Content-Type: application/json" \
+          --data "$ANALYZE_BODY" >/dev/null
     
     - name: Set secrets in Key Vault
       if: success()

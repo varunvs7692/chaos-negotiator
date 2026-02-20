@@ -160,6 +160,35 @@ tests/                     # Test Suite
 - Application Insights for audit trails
 - RBAC for deployment approvals
 
+### Optional API Endpoint Protection
+
+Sensitive endpoints (`/analyze`, `/demo/*`) can be protected with an API key.
+
+Set locally:
+
+```bash
+export API_AUTH_KEY="your-strong-key"
+python -m chaos_negotiator.server
+```
+
+Use with requests:
+
+```bash
+curl -X POST http://127.0.0.1:8000/analyze \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-strong-key" \
+  -d @deployment-example.json
+```
+
+For Azure runtime, set `API_AUTH_KEY` on your Container App to protect those endpoints:
+
+```bash
+az containerapp update \
+  --name chaos-negotiator \
+  --resource-group chaos-negotiator-rg \
+  --set-env-vars API_AUTH_KEY="your-strong-key"
+```
+
 ## 📈 Monitoring
 
 All contract decisions logged to Application Insights:

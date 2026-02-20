@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, HTTPException  # type: ignore[import-not-found]
+from fastapi import FastAPI, Header, HTTPException  # type: ignore[import-not-found]
 from fastapi.responses import FileResponse  # type: ignore[import-not-found]
 from pydantic import BaseModel
 
@@ -113,9 +113,22 @@ def _model_to_dict(value: Any) -> dict[str, Any]:
     return {"value": str(value)}
 
 
+def _require_api_key_if_configured(x_api_key: str | None) -> None:
+    """Require API key for protected endpoints when API_AUTH_KEY is configured."""
+    configured_key = os.getenv("API_AUTH_KEY", "").strip()
+    if not configured_key:
+        return
+    if not x_api_key or x_api_key != configured_key:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
 @app.post("/analyze")
-async def analyze_deployment(request: DeploymentRequest) -> AnalysisResponse:
+async def analyze_deployment(
+    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+) -> AnalysisResponse:
     """Analyze a deployment for risk and contract requirements."""
+    _require_api_key_if_configured(x_api_key)
+
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
@@ -150,8 +163,12 @@ async def analyze_deployment(request: DeploymentRequest) -> AnalysisResponse:
 
 
 @app.get("/demo/{scenario}")
-async def run_demo(scenario: str = "default") -> dict[str, object]:
+async def run_demo(
+    scenario: str = "default", x_api_key: str | None = Header(default=None)
+) -> dict[str, object]:
     """Run a demo scenario."""
+    _require_api_key_if_configured(x_api_key)
+
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
