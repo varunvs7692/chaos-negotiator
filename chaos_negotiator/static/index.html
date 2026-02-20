@@ -7,18 +7,18 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #070b16;
-      --bg-soft: #0d1428;
-      --panel: #111a33;
-      --panel-2: #182446;
-      --text: #e8eeff;
-      --muted: #aab8e8;
-      --line: #2a3968;
-      --brand: #5d7cff;
-      --brand-hover: #6c88ff;
-      --ok: #1dc97f;
-      --err: #ff7a7a;
-      --warn: #ffbf69;
+      --bg: #050913;
+      --bg-soft: #0e1630;
+      --panel: #111b36;
+      --panel-soft: #17264a;
+      --text: #eef2ff;
+      --muted: #a8b5e7;
+      --line: #2e406f;
+      --brand: #6c88ff;
+      --brand-hover: #7d97ff;
+      --ok: #27cf88;
+      --err: #ff8484;
+      --warn: #ffc46f;
     }
 
     * { box-sizing: border-box; }
@@ -28,25 +28,25 @@
       font-family: Inter, Segoe UI, Arial, sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at 20% 0%, #1a2754 0%, transparent 35%),
-        radial-gradient(circle at 90% 100%, #13203d 0%, transparent 40%),
+        radial-gradient(circle at 8% 0%, #1c2a5a 0%, transparent 32%),
+        radial-gradient(circle at 100% 100%, #132248 0%, transparent 42%),
         var(--bg);
       min-height: 100vh;
     }
 
     .wrap {
-      max-width: 1220px;
+      max-width: 1260px;
       margin: 0 auto;
       padding: 28px 18px 36px;
     }
 
     .hero {
       background:
-        radial-gradient(circle at 78% 15%, rgba(145, 176, 255, 0.24), transparent 38%),
-        linear-gradient(135deg, #101a36 0%, #1a2a55 55%, #273874 100%);
+        radial-gradient(circle at 80% 10%, rgba(150, 180, 255, 0.32), transparent 36%),
+        linear-gradient(135deg, #111c3d 0%, #1c2d59 52%, #2d4382 100%);
       border: 1px solid #32467f;
-      border-radius: 18px;
-      padding: 22px;
+      border-radius: 20px;
+      padding: 22px 22px 20px;
       margin-bottom: 16px;
       box-shadow: 0 20px 35px rgba(0, 0, 0, 0.35);
     }
@@ -61,7 +61,7 @@
     .hero p {
       margin: 10px 0 0;
       color: #d2dcff;
-      max-width: 760px;
+      max-width: 840px;
       line-height: 1.5;
     }
 
@@ -75,7 +75,7 @@
     .chip {
       font-size: 12px;
       color: #d3deff;
-      background: rgba(13, 23, 47, 0.62);
+      background: rgba(11, 20, 42, 0.64);
       border: 1px solid #3a518f;
       padding: 6px 10px;
       border-radius: 999px;
@@ -84,7 +84,7 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 1.08fr 0.92fr;
+      grid-template-columns: 1.05fr 0.95fr;
       gap: 16px;
       align-items: start;
     }
@@ -95,7 +95,7 @@
       border-radius: 16px;
       padding: 18px;
       backdrop-filter: blur(5px);
-      box-shadow: 0 16px 26px rgba(1, 8, 20, 0.35);
+      box-shadow: 0 14px 28px rgba(1, 8, 20, 0.38);
     }
 
     .card h2 {
@@ -107,6 +107,34 @@
       margin: 0 0 14px;
       color: var(--muted);
       font-size: 13px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 0 12px;
+    }
+
+    .summary-item {
+      border: 1px solid #324676;
+      background: linear-gradient(180deg, #121d3a 0%, #0f1831 100%);
+      border-radius: 12px;
+      padding: 10px;
+    }
+
+    .summary-item .k {
+      color: #9fb2e6;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .45px;
+    }
+
+    .summary-item .v {
+      margin-top: 6px;
+      font-size: 18px;
+      font-weight: 700;
+      color: #eff4ff;
     }
 
     .grid {
@@ -172,6 +200,12 @@
       transition: transform .04s ease, background-color .15s ease, box-shadow .15s ease;
     }
 
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     button:active { transform: translateY(1px); }
     button:hover { background: #344b89; }
 
@@ -220,7 +254,7 @@
       border: 1px solid #2a3a68;
       border-radius: 12px;
       overflow: hidden;
-      min-height: 460px;
+      min-height: 430px;
       display: flex;
       flex-direction: column;
     }
@@ -236,10 +270,26 @@
       color: #b8c7f7;
     }
 
+    .result-tools {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .ghost-btn {
+      border: 1px solid #41578e;
+      background: #1a2850;
+      color: #d7e2ff;
+      border-radius: 8px;
+      font-size: 11px;
+      padding: 5px 8px;
+      font-weight: 600;
+    }
+
     pre {
       margin: 0;
       padding: 12px;
-      max-height: 560px;
+      max-height: 520px;
       overflow: auto;
       font-size: 12px;
       line-height: 1.45;
@@ -257,6 +307,10 @@
     @media (max-width: 820px) {
       .layout {
         grid-template-columns: 1fr;
+      }
+
+      .summary-grid {
+        grid-template-columns: 1fr 1fr;
       }
 
       .grid {
@@ -340,10 +394,33 @@
       <article class="card result-panel">
         <h2>Result</h2>
         <p class="hint">Latest API response for your analysis request.</p>
+
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="k">Risk Level</div>
+            <div class="v" id="sumRiskLevel">—</div>
+          </div>
+          <div class="summary-item">
+            <div class="k">Risk Score</div>
+            <div class="v" id="sumRiskScore">—</div>
+          </div>
+          <div class="summary-item">
+            <div class="k">Guardrails</div>
+            <div class="v" id="sumGuards">—</div>
+          </div>
+          <div class="summary-item">
+            <div class="k">Validators</div>
+            <div class="v" id="sumValidators">—</div>
+          </div>
+        </div>
+
         <div class="result-wrap">
           <div class="result-head">
             <span>JSON Output</span>
-            <span id="resultStamp">No requests yet</span>
+            <div class="result-tools">
+              <span id="resultStamp">No requests yet</span>
+              <button id="copyJsonBtn" class="ghost-btn" type="button">Copy</button>
+            </div>
           </div>
           <pre id="output">{}</pre>
         </div>
@@ -357,6 +434,18 @@
     const statusBarEl = document.getElementById('statusBar');
     const outputEl = document.getElementById('output');
     const resultStampEl = document.getElementById('resultStamp');
+    const copyJsonBtn = document.getElementById('copyJsonBtn');
+    const actionButtons = [
+      document.getElementById('analyzeBtn'),
+      document.getElementById('demoDefault'),
+      document.getElementById('demoHigh'),
+      document.getElementById('demoLow')
+    ];
+
+    const sumRiskLevel = document.getElementById('sumRiskLevel');
+    const sumRiskScore = document.getElementById('sumRiskScore');
+    const sumGuards = document.getElementById('sumGuards');
+    const sumValidators = document.getElementById('sumValidators');
 
     function setStatus(message, tone = 'idle') {
       statusEl.textContent = message;
@@ -365,13 +454,34 @@
       if (tone === 'err') statusBarEl.classList.add('err');
     }
 
+    function setLoading(isLoading) {
+      actionButtons.forEach((button) => {
+        button.disabled = isLoading;
+      });
+    }
+
     function setOutput(data) {
       outputEl.textContent = JSON.stringify(data, null, 2);
       resultStampEl.textContent = new Date().toLocaleTimeString();
+      updateSummary(data);
+    }
+
+    function updateSummary(data) {
+      const contract = data?.deployment_contract || data || {};
+      const riskLevel = contract?.predicted_risk_level;
+      const riskScore = contract?.risk_score;
+      const guardrails = contract?.guardrails;
+      const validators = contract?.validators;
+
+      sumRiskLevel.textContent = riskLevel ? String(riskLevel).toUpperCase() : '—';
+      sumRiskScore.textContent = Number.isFinite(riskScore) ? `${Number(riskScore).toFixed(1)} / 100` : '—';
+      sumGuards.textContent = Array.isArray(guardrails) ? String(guardrails.length) : '—';
+      sumValidators.textContent = Array.isArray(validators) ? String(validators.length) : '—';
     }
 
     async function callApi(path, method = 'GET', body = null) {
       setStatus('Running request...', 'idle');
+      setLoading(true);
       try {
         const apiKey = document.getElementById('apiKey').value.trim();
         const headers = {};
@@ -388,6 +498,7 @@
         if (!res.ok) {
           setStatus(`Request failed (${res.status})`, 'err');
           setOutput(data);
+          setLoading(false);
           return;
         }
 
@@ -396,8 +507,19 @@
       } catch (err) {
         setStatus('Request failed. Check server/network.', 'err');
         setOutput({ error: String(err) });
+      } finally {
+        setLoading(false);
       }
     }
+
+    copyJsonBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(outputEl.textContent || '{}');
+        setStatus('JSON copied to clipboard.', 'ok');
+      } catch {
+        setStatus('Could not copy JSON in this browser.', 'err');
+      }
+    });
 
     document.getElementById('analyzeBtn').addEventListener('click', () => {
       const payload = {
