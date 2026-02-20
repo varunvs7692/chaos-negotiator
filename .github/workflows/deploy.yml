@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  REGISTRY: ${{ secrets.AZURE_REGISTRY_URL }}
   IMAGE_NAME: chaos-negotiator
   AZURE_RESOURCE_GROUP: chaos-negotiator-rg
   AZURE_APP_NAME: chaos-negotiator
@@ -16,6 +15,8 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      REGISTRY: ${{ secrets.AZURE_REGISTRY_URL }}
     
     permissions:
       id-token: write
