@@ -82,6 +82,28 @@ python -m chaos_negotiator.main
 # Run with custom deployment context
 python -m chaos_negotiator.main deployment.json
 ```
+
+### 🌐 Interactive Dashboard & API
+
+Start the API server to see the live agent in action on the interactive dashboard:
+
+```bash
+# Option 1: bundled HTTP server (includes static files)
+python -m chaos_negotiator.server
+
+# Option 2: uvicorn with hot reload (recommended during development)
+uvicorn chaos_negotiator.agent.api:app --reload
+```
+
+Then open your browser to `http://localhost:8000` and explore:
+- **Risk Assessment Card** — live risk score & confidence from the agent
+- **Canary Timeline** — dynamic rollout strategy based on risk level
+- **Guardrails Summary** — contract constraints (error rate, latency budgets)
+- **Deployment History** — recent outcomes with prediction accuracy
+
+The `/api/deployments/latest` endpoint calls the real `ChaosNegotiatorAgent` and returns dynamic values.
+The React frontend (running at `http://localhost:3000` via `npm start` in the `frontend/` directory) polls this API every 10 seconds to stay up-to-date.
+
 ### 🧠 Learning from Deployments
 
 After a deployment completes you can log the real-world outcome so the
