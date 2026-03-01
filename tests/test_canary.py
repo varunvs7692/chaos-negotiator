@@ -1,8 +1,7 @@
 """Tests for canary deployment engine."""
 
-import pytest
 from chaos_negotiator.models import DeploymentContext, DeploymentChange, RiskAssessment
-from chaos_negotiator.canary import CanaryOrchestrator, CanaryPolicy
+from chaos_negotiator.canary import CanaryOrchestrator
 
 
 def test_canary_high_risk_low_confidence():
