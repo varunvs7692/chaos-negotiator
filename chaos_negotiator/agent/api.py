@@ -1,8 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+import time
 
 from chaos_negotiator.agent.agent import ChaosNegotiatorAgent
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 app = FastAPI()
 # allow the dashboard (running on localhost:3000) to call our API during development
@@ -14,6 +19,7 @@ app.add_middleware(
 )
 
 agent = ChaosNegotiatorAgent()
+logger.info("✅ ChaosNegotiatorAgent initialized on API startup")
 
 
 def _build_demo_context() -> DeploymentContext:
@@ -61,17 +67,29 @@ def get_latest_assessment() -> dict[str, object]:
     frontend is always reflecting the same data that would be stored or acted
     on by the system.
     """
+    request_id = int(time.time() * 1000)
+    logger.info(f"\n{'='*60}")
+    logger.info(f"[{request_id}] 🔵 API REQUEST: /api/deployments/latest")
+    logger.info(f"[{request_id}] Building demo context...")
+    
     ctx = _build_demo_context()
+    logger.info(f"[{request_id}] ✅ Demo context built: {ctx.deployment_id}")
 
     # full processing returns a deployment contract with risk & rollback info
+    logger.info(f"[{request_id}] 🔄 Calling agent.process_deployment()...")
     contract = agent.process_deployment(ctx)
+    logger.info(f"[{request_id}] ✅ Contract generated: {contract.contract_id}")
+    logger.info(f"[{request_id}] ✅ Risk Assessment: score={contract.risk_assessment.risk_score:.1f}, confidence={contract.risk_assessment.confidence_percent:.1f}%")
 
     # generate canary policy from the same context (uses contract internally)
+    logger.info(f"[{request_id}] 🔄 Calling agent.generate_canary_policy()...")
     policy = agent.generate_canary_policy(ctx)
+    logger.info(f"[{request_id}] ✅ Canary policy generated with {len(policy.stages)} stages")
+    
     first_stage = policy.stages[0] if policy.stages else None
 
     ra = contract.risk_assessment
-    return {
+    response = {
         "service": ctx.service_name,
         # risk_score already ranges 0–100, so we expose it directly as percent
         "risk_percent": ra.risk_score,
@@ -80,3 +98,8 @@ def get_latest_assessment() -> dict[str, object]:
         "canary_stage": first_stage.name if first_stage else "smoke",
         "traffic_percent": first_stage.traffic_percent if first_stage else 0,
     }
+    
+    logger.info(f"[{request_id}] 📤 RESPONSE: risk={response['risk_percent']:.1f}%, confidence={response['confidence_percent']:.1f}%, stage={response['canary_stage']}")
+    logger.info(f"[{request_id}] ✅ Request complete\n{'='*60}\n")
+    
+    return response

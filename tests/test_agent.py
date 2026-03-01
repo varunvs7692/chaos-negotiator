@@ -60,7 +60,7 @@ def test_agent_records_outcome(tmp_path):
     agent.risk_predictor = EnsembleRiskPredictor(history_store=agent.history_store)
 
     # simulate a deployment and record an outcome
-    contract = agent.process_deployment(context)
+    agent.process_deployment(context)
     agent.record_deployment_result(
         context,
         actual_error_rate_percent=0.02,

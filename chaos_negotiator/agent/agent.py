@@ -108,12 +108,18 @@ class ChaosNegotiatorAgent:
         actual_error_rate_percent: float,
         actual_latency_change_percent: float,
         rollback_triggered: bool,
-    ) -> None:
+    ) -> DeploymentOutcome | None:
         """Log the real outcome of a deployment so the risk engine can learn.
 
         Should be called by whatever subsystem actually observes the
 deployment (e.g. enforcement simulator or production monitoring).
         """
+        logger.info(f"\n{'='*60}")
+        logger.info(f"📝 Recording deployment result: {context.deployment_id}")
+        logger.info(f"  Actual Error Rate: {actual_error_rate_percent}%")
+        logger.info(f"  Actual Latency Change: {actual_latency_change_percent}%")
+        logger.info(f"  Rollback Triggered: {rollback_triggered}")
+        
         # build an outcome record using the last prediction
         if isinstance(self.risk_predictor, EnsembleRiskPredictor):
             assessment = self.risk_predictor.predict(context)
@@ -131,10 +137,19 @@ deployment (e.g. enforcement simulator or production monitoring).
                 actual_latency_change_percent=actual_latency_change_percent,
                 rollback_triggered=rollback_triggered,
             )
+            logger.info("✅ Saving outcome to history store...")
+            logger.info(f"  Heuristic Score: {heuristic:.1f}")
+            logger.info(f"  ML Score: {ml:.1f}")
+            logger.info(f"  Final Score: {assessment.risk_score:.1f}")
             self.history_store.save(outcome)
+            logger.info("✏️ Outcome saved successfully")
+            logger.info(f"{'='*60}\n")
+            return outcome
         else:
             # no-op if not using ensemble
-            pass
+            logger.warning("⚠️ Cannot record result: ensemble predictor not active")
+            logger.info(f"{'='*60}\n")
+            return None
 
     async def process_deployment_async(self, context: DeploymentContext) -> DeploymentContract:
         """Process deployment using Semantic Kernel orchestration (async)."""
@@ -209,37 +224,7 @@ deployment (e.g. enforcement simulator or production monitoring).
         if hasattr(self, "scheduler") and self.scheduler:
             logger.info("Stopping weight tuning scheduler...")
             self.scheduler.stop()
-
-
-        # Get initial contract
-        contract = self.process_deployment(context)
-
-        # Setup conversation
-        self._setup_conversation(context, contract)
-
-        # Interactive loop
-        while True:
-            user_input = input("\nYou: ").strip()
-
-            if not user_input:
-                continue
-
-            if user_input.lower() in ["approve", "yes", "accepted"]:
-                contract.status = "approved"
-                contract.approved_at = datetime.utcnow()
-                logger.info("Contract approved!")
-                break
-
-            if user_input.lower() in ["reject", "no", "denied"]:
-                contract.status = "rejected"
-                logger.info("Contract rejected.")
-                break
-
-            # Get agent response
-            response = self._get_agent_response(user_input, context, contract)
-            print(f"\nAgent: {response}")
-
-        return contract
+        logger.info("Agent shutdown complete")
 
     def _setup_conversation(self, context: DeploymentContext, contract: DeploymentContract) -> None:
         """Initialize conversation with system context."""

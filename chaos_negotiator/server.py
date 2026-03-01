@@ -110,6 +110,15 @@ class AnalysisResponse(BaseModel):
     deployment_contract: dict
 
 
+class DeploymentResultRequest(BaseModel):
+    """Request model for recording a deployment outcome."""
+
+    deployment_id: str
+    actual_error_rate_percent: float
+    actual_latency_change_percent: float
+    rollback_triggered: bool
+
+
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
     """Serve dashboard homepage; fallback to JSON if static file is missing."""
@@ -294,6 +303,59 @@ async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error getting deployment history: {e}")
         raise HTTPException(status_code=400, detail="Failed to get deployment history")
+
+
+@app.post("/api/deployments/record-result")
+async def record_deployment_result(
+    result: DeploymentResultRequest, x_api_key: str | None = Header(default=None)
+) -> dict[str, Any]:
+    """Record the actual outcome of a deployment for learning.
+    
+    Call this after deployment completes with the real metrics observed.
+    This data feeds the learning loop so the risk engine improves over time.
+    """
+    _require_api_key_if_configured(x_api_key)
+    
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    
+    try:
+        logger.info(f"Recording result for deployment: {result.deployment_id}")
+        
+        # Build a minimal context for the deployment (we mainly need the ID)
+        context = DeploymentContext(
+            deployment_id=result.deployment_id,
+            service_name="unknown",
+            environment="production",
+            version="unknown",
+            changes=[],
+        )
+        
+        # Record the outcome
+        outcome = agent.record_deployment_result(
+            context,
+            actual_error_rate_percent=result.actual_error_rate_percent,
+            actual_latency_change_percent=result.actual_latency_change_percent,
+            rollback_triggered=result.rollback_triggered,
+        )
+        
+        if outcome is None:
+            raise HTTPException(status_code=400, detail="Failed to record deployment result")
+        
+        logger.info(f"✅ Deployment result recorded successfully: {result.deployment_id}")
+        
+        return {
+            "status": "success",
+            "deployment_id": outcome.deployment_id,
+            "final_score": outcome.final_score,
+            "timestamp": outcome.timestamp.isoformat(),
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error recording deployment result: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to record deployment result: {str(e)}")
 
 
 @app.get("/api/dashboard/canary")
