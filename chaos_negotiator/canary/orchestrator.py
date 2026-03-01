@@ -59,9 +59,7 @@ class CanaryOrchestrator:
 
         return policy
 
-    def _generate_stages(
-        self, risk: float, confidence: float
-    ) -> list[CanaryStage]:
+    def _generate_stages(self, risk: float, confidence: float) -> list[CanaryStage]:
         """Generate rollout stages tuned to risk and confidence.
 
         High confidence + low risk → fast rollout (fewer stages).

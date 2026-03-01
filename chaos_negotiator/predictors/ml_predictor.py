@@ -34,10 +34,7 @@ class MLRiskPredictor:
     def _extract_features(self, context: DeploymentContext) -> List[float]:
         """Convert the deployment context into a fixed‑length feature vector."""
         num_changes = len(context.changes)
-        total_lines = (
-            context.total_lines_changed
-            or sum(c.lines_changed for c in context.changes)
-        )
+        total_lines = context.total_lines_changed or sum(c.lines_changed for c in context.changes)
 
         # simple heuristics to detect certain risky change types
         descs = " ".join(c.description.lower() for c in context.changes)

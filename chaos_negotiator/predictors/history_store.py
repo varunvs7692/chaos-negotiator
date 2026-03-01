@@ -25,8 +25,7 @@ class DeploymentHistoryStore:
         self._ensure_table()
 
     def _ensure_table(self) -> None:
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS outcomes (
                 deployment_id TEXT PRIMARY KEY,
                 heuristic_score REAL,
@@ -37,8 +36,7 @@ class DeploymentHistoryStore:
                 rollback_triggered INTEGER,
                 timestamp TEXT
             )
-            """
-        )
+            """)
         self.conn.commit()
 
     def save(self, outcome: DeploymentOutcome) -> None:

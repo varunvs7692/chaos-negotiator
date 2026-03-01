@@ -110,15 +110,15 @@ class ChaosNegotiatorAgent:
     ) -> DeploymentOutcome | None:
         """Log the real outcome of a deployment so the risk engine can learn.
 
-        Should be called by whatever subsystem actually observes the
-deployment (e.g. enforcement simulator or production monitoring).
+                Should be called by whatever subsystem actually observes the
+        deployment (e.g. enforcement simulator or production monitoring).
         """
         logger.info(f"\n{'='*60}")
         logger.info(f"📝 Recording deployment result: {context.deployment_id}")
         logger.info(f"  Actual Error Rate: {actual_error_rate_percent}%")
         logger.info(f"  Actual Latency Change: {actual_latency_change_percent}%")
         logger.info(f"  Rollback Triggered: {rollback_triggered}")
-        
+
         # build an outcome record using the last prediction
         if isinstance(self.risk_predictor, EnsembleRiskPredictor):
             assessment = self.risk_predictor.predict(context)

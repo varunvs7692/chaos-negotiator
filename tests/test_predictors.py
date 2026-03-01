@@ -83,5 +83,3 @@ def test_history_store_and_tuning(tmp_path):
 
     # after tuning the ml weight should be larger (ml was more accurate)
     assert predictor.ml_weight > predictor.heuristic_weight
-
-

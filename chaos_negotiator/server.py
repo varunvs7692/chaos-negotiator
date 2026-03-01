@@ -101,9 +101,9 @@ class HealthResponse(BaseModel):
     agent_ready: bool
 
 
-
 class AnalysisResponse(BaseModel):
     """Deployment analysis response."""
+
     deployment_id: str
     risk_assessment: dict
     rollback_plan: dict
@@ -173,7 +173,6 @@ def _require_api_key_if_configured(x_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
-
 # --- NEW ENDPOINT: POST /api/deployments/evaluate ---
 @app.post("/api/deployments/evaluate")
 async def evaluate_deployment(
@@ -204,6 +203,7 @@ async def evaluate_deployment(
 
         # Simulate metrics if real telemetry is not available
         import random
+
         simulated_error_rate = round(random.uniform(0.1, 5.0), 2)
         simulated_latency = round(random.uniform(-2.0, 10.0), 2)
         simulated_metrics = {
@@ -302,7 +302,6 @@ async def get_latest_risk() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Failed to get risk assessment")
 
 
-
 @app.get("/api/dashboard/history")
 async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
     """Get recent deployment history from the learning store."""
@@ -338,18 +337,18 @@ async def record_deployment_result(
     result: DeploymentResultRequest, x_api_key: str | None = Header(default=None)
 ) -> dict[str, Any]:
     """Record the actual outcome of a deployment for learning.
-    
+
     Call this after deployment completes with the real metrics observed.
     This data feeds the learning loop so the risk engine improves over time.
     """
     _require_api_key_if_configured(x_api_key)
-    
+
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
-    
+
     try:
         logger.info(f"Recording result for deployment: {result.deployment_id}")
-        
+
         # Build a minimal context for the deployment (we mainly need the ID)
         context = DeploymentContext(
             deployment_id=result.deployment_id,
@@ -358,7 +357,7 @@ async def record_deployment_result(
             version="unknown",
             changes=[],
         )
-        
+
         # Record the outcome
         outcome = agent.record_deployment_result(
             context,
@@ -366,19 +365,19 @@ async def record_deployment_result(
             actual_latency_change_percent=result.actual_latency_change_percent,
             rollback_triggered=result.rollback_triggered,
         )
-        
+
         if outcome is None:
             raise HTTPException(status_code=400, detail="Failed to record deployment result")
-        
+
         logger.info(f"✅ Deployment result recorded successfully: {result.deployment_id}")
-        
+
         return {
             "status": "success",
             "deployment_id": outcome.deployment_id,
             "final_score": outcome.final_score,
             "timestamp": outcome.timestamp.isoformat(),
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:

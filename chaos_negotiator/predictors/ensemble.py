@@ -34,9 +34,7 @@ class EnsembleRiskPredictor:
         # allow ops teams to tune weights without redeploying
         import os
 
-        self.heuristic_weight = float(
-            os.getenv("CN_HEURISTIC_WEIGHT", heuristic_weight)
-        )
+        self.heuristic_weight = float(os.getenv("CN_HEURISTIC_WEIGHT", heuristic_weight))
         self.ml_weight = float(os.getenv("CN_ML_WEIGHT", ml_weight))
 
         # weights are kept between 0.1 and 0.9 to avoid collapse
@@ -49,9 +47,7 @@ class EnsembleRiskPredictor:
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------
-    def _combine_scores(
-        self, heuristic: float, ml: float
-    ) -> float:  # both in 0-100 space
+    def _combine_scores(self, heuristic: float, ml: float) -> float:  # both in 0-100 space
         return round(heuristic * self.heuristic_weight + ml * self.ml_weight, 2)
 
     def _determine_level(self, score: float) -> str:
