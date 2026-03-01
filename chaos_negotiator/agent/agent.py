@@ -12,9 +12,13 @@ from chaos_negotiator.models import (
     Guardrail,
     GuardrailRequirement,
 )
-from chaos_negotiator.predictors import RiskPredictor
+from chaos_negotiator.predictors import EnsembleRiskPredictor
+from chaos_negotiator.predictors.history_store import DeploymentHistoryStore
+from chaos_negotiator.models.outcome import DeploymentOutcome
 from chaos_negotiator.validators import RollbackValidator
 from chaos_negotiator.contracts import ContractEngine
+from chaos_negotiator.canary import CanaryOrchestrator, CanaryPolicy
+from chaos_negotiator.scheduler.weight_scheduler import WeightTuningScheduler
 
 # Import Semantic Kernel orchestrator
 try:
@@ -84,11 +88,53 @@ class ChaosNegotiatorAgent:
                 logger.info("Semantic Kernel not available, using legacy orchestration")
 
         # Initialize sub-engines (used by both SK and legacy modes)
-        self.risk_predictor = RiskPredictor()
+        # set up history store and wire it into the ensemble predictor so the
+        # risk engine can learn from real outcomes later
+        self.history_store = DeploymentHistoryStore()
+        self.risk_predictor = EnsembleRiskPredictor(history_store=self.history_store)
         self.rollback_validator = RollbackValidator()
         self.contract_engine = ContractEngine()
+        self.canary_orchestrator = CanaryOrchestrator()
+
+        # scheduler for automatic weight tuning (runs in background)
+        self.scheduler = WeightTuningScheduler(self.risk_predictor)
+        self.scheduler.start()
 
         self.conversation_history: list[ChatCompletionMessageParam] = []
+
+    def record_deployment_result(
+        self,
+        context: DeploymentContext,
+        actual_error_rate_percent: float,
+        actual_latency_change_percent: float,
+        rollback_triggered: bool,
+    ) -> None:
+        """Log the real outcome of a deployment so the risk engine can learn.
+
+        Should be called by whatever subsystem actually observes the
+deployment (e.g. enforcement simulator or production monitoring).
+        """
+        # build an outcome record using the last prediction
+        if isinstance(self.risk_predictor, EnsembleRiskPredictor):
+            assessment = self.risk_predictor.predict(context)
+            # split out heuristic/ml via reasoning breakdown if available
+            # for now we can approximate by re-running each component
+            heuristic = self.risk_predictor.heuristic.predict(context).risk_score
+            ml = self.risk_predictor.ml.predict(context) * 100
+
+            outcome = DeploymentOutcome(
+                deployment_id=context.deployment_id,
+                heuristic_score=heuristic,
+                ml_score=ml,
+                final_score=assessment.risk_score,
+                actual_error_rate_percent=actual_error_rate_percent,
+                actual_latency_change_percent=actual_latency_change_percent,
+                rollback_triggered=rollback_triggered,
+            )
+            self.history_store.save(outcome)
+        else:
+            # no-op if not using ensemble
+            pass
 
     async def process_deployment_async(self, context: DeploymentContext) -> DeploymentContract:
         """Process deployment using Semantic Kernel orchestration (async)."""
@@ -129,11 +175,41 @@ class ChaosNegotiatorAgent:
 
         return contract
 
+    def generate_canary_policy(self, context: DeploymentContext) -> CanaryPolicy:
+        """Generate a dynamic canary policy from the deployment context.
+
+        Uses risk and confidence to determine rollout stages.
+        """
+        logger.info(f"Generating canary policy for {context.deployment_id}...")
+
+        # Get risk assessment to extract confidence
+        risk_assessment = self.risk_predictor.predict(context)
+        logger.info(
+            f"Risk: {risk_assessment.risk_score:.1f}, "
+            f"Confidence: {risk_assessment.confidence_percent:.1f}%"
+        )
+
+        # Generate canary policy
+        policy = self.canary_orchestrator.generate_policy(context, risk_assessment)
+        logger.info(
+            f"Canary policy: {len(policy.stages)} stages, "
+            f"error rate threshold={policy.error_rate_threshold:.2f}%"
+        )
+
+        return policy
+
     def negotiate_with_user(self, context: DeploymentContext) -> DeploymentContract:
         """
         Engage in interactive negotiation with the user about deployment safety.
         """
         logger.info("Starting interactive negotiation...")
+
+    def shutdown(self) -> None:
+        """Clean up resources before process exit."""
+        if hasattr(self, "scheduler") and self.scheduler:
+            logger.info("Stopping weight tuning scheduler...")
+            self.scheduler.stop()
+
 
         # Get initial contract
         contract = self.process_deployment(context)

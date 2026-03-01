@@ -46,6 +46,11 @@ class ContractEngine:
         # Generate detailed reasoning
         contract.reasoning = self._generate_reasoning(contract, risk_assessment, rollback_plan)
 
+        # keep a copy of the original models for debugging/inspection
+        contract.risk_assessment = risk_assessment
+        contract.rollback_plan = rollback_plan
+        contract.deployment_context = context
+
         return contract
 
     def _build_guardrails(

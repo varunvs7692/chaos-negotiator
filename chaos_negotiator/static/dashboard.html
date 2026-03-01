@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chaos Negotiator Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- React and Babel for development -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Component: RiskCard -->
+    <script type="text/babel">
+        function RiskCard({ data }) {
+          const getRiskColor = (score) => {
+            if (score >= 70) return '#ff4444';
+            if (score >= 50) return '#ffaa00';
+            if (score >= 30) return '#ffdd44';
+            return '#44dd44';
+          };
+
+          const getConfidenceColor = (conf) => {
+            if (conf >= 80) return '#44dd44';
+            if (conf >= 60) return '#ffdd44';
+            if (conf >= 40) return '#ffaa00';
+            return '#ff4444';
+          };
+
+          return (
+            <div className="risk-card">
+              <div className="risk-circle">
+                <svg viewBox="0 0 100 100" className="risk-gauge">
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="#e0e0e0" strokeWidth="2" />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    fill="none"
+                    stroke={getRiskColor(data.risk_score)}
+                    strokeWidth="8"
+                    strokeDasharray={`${(data.risk_score / 100) * 282} 282`}
+                    strokeLinecap="round"
+                  />
+                  <text x="50" y="45" textAnchor="middle" fontSize="28" fontWeight="bold" fill={getRiskColor(data.risk_score)}>
+                    {Math.round(data.risk_score)}
+                  </text>
+                  <text x="50" y="60" textAnchor="middle" fontSize="12" fill="#666">
+                    Risk Score
+                  </text>
+                </svg>
+              </div>
+
+              <div className="risk-details">
+                <div className="detail-row">
+                  <label>Risk Level:</label>
+                  <span className="risk-level" style={{ color: getRiskColor(data.risk_score) }}>
+                    {data.risk_level}
+                  </span>
+                </div>
+
+                <div className="detail-row">
+                  <label>Confidence:</label>
+                  <div className="confidence-bar">
+                    <div
+                      className="confidence-fill"
+                      style={{
+                        width: `${data.confidence_percent}%`,
+                        backgroundColor: getConfidenceColor(data.confidence_percent),
+                      }}
+                    />
+                  </div>
+                  <span className="confidence-text">{Math.round(data.confidence_percent)}%</span>
+                </div>
+
+                <div className="detail-row">
+                  <label>Predicted Error Rate ↑:</label>
+                  <span>{data.predicted_error_rate_increase}%</span>
+                </div>
+
+                <div className="detail-row">
+                  <label>Predicted Latency ↑:</label>
+                  <span>{data.predicted_latency_increase}ms</span>
+                </div>
+
+                {data.identified_factors && data.identified_factors.length > 0 && (
+                  <div className="detail-row full-width">
+                    <label>Risk Factors:</label>
+                    <div className="factors-list">
+                      {data.identified_factors.map((factor, idx) => (
+                        <span key={idx} className="factor-badge">
+                          {factor}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        window.RiskCard = RiskCard;
+    </script>
+
+    <!-- Component: CanaryTimeline -->
+    <script type="text/babel">
+        function CanaryTimeline({ data }) {
+          const isHighRisk = data.risk_score >= 70;
+          const isLowConfidence = data.confidence_percent < 50;
+
+          return (
+            <div className="canary-timeline">
+              <div className="canary-info">
+                <div className="info-badge">
+                  <span className="badge-label">Deployment ID:</span>
+                  <span className="badge-value">{data.deployment_id?.substring(0, 8)}...</span>
+                </div>
+                <div className="info-badge">
+                  <span className="badge-label">Risk:</span>
+                  <span className={`badge-value ${isHighRisk ? 'high-risk' : 'low-risk'}`}>
+                    {data.risk_score}
+                  </span>
+                </div>
+                <div className="info-badge">
+                  <span className="badge-label">Confidence:</span>
+                  <span className={`badge-value ${isLowConfidence ? 'low-conf' : 'high-conf'}`}>
+                    {data.confidence_percent}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="timeline-container">
+                {data.stages.map((stage, idx) => {
+                  const isCurrentOrPassed = idx === 0;
+                  const allPassed = idx < 0;
+
+                  return (
+                    <div key={idx} className="timeline-item">
+                      <div className={`stage-node ${isCurrentOrPassed ? 'current' : ''} ${allPassed ? 'passed' : ''}`}>
+                        <span className="stage-number">{stage.stage_number}</span>
+                      </div>
+                      <div className="stage-content">
+                        <div className="stage-name">{stage.name}</div>
+                        <div className="stage-details">
+                          <div className="detail">
+                            <span className="detail-label">Traffic:</span>
+                            <span className="detail-value">{stage.traffic_percent}%</span>
+                            <div className="traffic-bar">
+                              <div className="traffic-fill" style={{ width: `${stage.traffic_percent}%` }} />
+                            </div>
+                          </div>
+                          <div className="detail">
+                            <span className="detail-label">Duration:</span>
+                            <span className="detail-value">{stage.duration_seconds}s</span>
+                          </div>
+                        </div>
+                      </div>
+                      {idx < data.stages.length - 1 && <div className="timeline-line" />}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="strategy-note">
+                {isHighRisk && isLowConfidence && (
+                  <p>
+                    ⚠️ <strong>Cautious Strategy:</strong> High risk + low confidence → slow, incremental rollout with very small initial traffic.
+                  </p>
+                )}
+                {isHighRisk && !isLowConfidence && (
+                  <p>
+                    ⚠️ <strong>Moderate Strategy:</strong> High risk but good confidence → measured rollout with medium initial traffic.
+                  </p>
+                )}
+                {!isHighRisk && isLowConfidence && (
+                  <p>
+                    📊 <strong>Learning Strategy:</strong> Low risk but low confidence → staged discovery with medium initial traffic.
+                  </p>
+                )}
+                {!isHighRisk && !isLowConfidence && (
+                  <p>
+                    ✅ <strong>Rapid Strategy:</strong> Low risk + high confidence → fast rollout with aggressive initial traffic.
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        window.CanaryTimeline = CanaryTimeline;
+    </script>
+
+    <!-- Component: HistoryTable -->
+    <script type="text/babel">
+        function HistoryTable({ data }) {
+          const formatDate = (isoString) => {
+            const date = new Date(isoString);
+            return date.toLocaleTimeString();
+          };
+
+          const getOutcomeColor = (rollback) => {
+            return rollback ? '#ff4444' : '#44dd44';
+          };
+
+          return (
+            <div className="history-table">
+              {data.outcomes && data.outcomes.length > 0 ? (
+                <>
+                  <div className="history-summary">
+                    <span className="summary-item">
+                      Total Deployments: <strong>{data.total}</strong>
+                    </span>
+                    <span className="summary-item">
+                      Success Rate:{' '}
+                      <strong>
+                        {Math.round(
+                          ((data.total - data.outcomes.filter((o) => o.rollback_triggered).length) / data.total) * 100
+                        )}
+                        %
+                      </strong>
+                    </span>
+                  </div>
+
+                  <table className="outcomes-table">
+                    <thead>
+                      <tr>
+                        <th>Time</th>
+                        <th>Deployment ID</th>
+                        <th>Predicted Risk</th>
+                        <th>Actual Error Rate</th>
+                        <th>Actual Latency Δ</th>
+                        <th>Outcome</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.outcomes.map((outcome, idx) => (
+                        <tr key={idx}>
+                          <td className="time-cell">{formatDate(outcome.timestamp)}</td>
+                          <td className="id-cell" title={outcome.deployment_id}>
+                            {outcome.deployment_id.substring(0, 8)}...
+                          </td>
+                          <td className="score-cell">
+                            <div className="ensemble-scores">
+                              <span className="mini-badge" title="Heuristic Score">
+                                H: {Math.round(outcome.heuristic_score)}
+                              </span>
+                              <span className="mini-badge" title="ML Score">
+                                M: {Math.round(outcome.ml_score * 100)}
+                              </span>
+                              <span className="mini-badge bold" title="Final Ensemble Score">
+                                E: {Math.round(outcome.final_score)}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="metric-cell">
+                            <span className={outcome.actual_error_rate > 1 ? 'metric-high' : ''}>
+                              {outcome.actual_error_rate.toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="metric-cell">
+                            <span className={outcome.actual_latency_change > 200 ? 'metric-high' : ''}>
+                              +{outcome.actual_latency_change.toFixed(0)}ms
+                            </span>
+                          </td>
+                          <td className="outcome-cell">
+                            <span
+                              className={`outcome-badge ${outcome.rollback_triggered ? 'rollback' : 'success'}`}
+                              style={{ backgroundColor: getOutcomeColor(outcome.rollback_triggered) }}
+                            >
+                              {outcome.rollback_triggered ? 'Rollback' : 'Success'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <p>No deployment history yet. Run a deployment to see results here.</p>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        window.HistoryTable = HistoryTable;
+    </script>
+
+    <!-- Component: ContractSummary -->
+    <script type="text/babel">
+        function ContractSummary({ data }) {
+          const isStrictLatency = data.latency_threshold_ms === 200;
+
+          return (
+            <div className="contract-summary">
+              <div className="guardrail-section">
+                <h3>🛡️ Error Rate Guardrail</h3>
+                <div className="guardrail-value">
+                  <span className="value">{data.error_rate_threshold.toFixed(2)}%</span>
+                  <span className="label">max acceptable error increase</span>
+                </div>
+                <p className="guardrail-description">
+                  {data.error_rate_threshold <= 0.2
+                    ? 'Very strict: critical system, minimal tolerance'
+                    : data.error_rate_threshold <= 0.35
+                      ? 'Standard: balanced safety and speed'
+                      : 'Relaxed: lower-priority service, more tolerance'}
+                </p>
+              </div>
+
+              <div className="guardrail-section">
+                <h3>⏱️ Latency Guardrail</h3>
+                <div className="guardrail-value">
+                  <span className="value">{data.latency_threshold_ms}ms</span>
+                  <span className="label">max acceptable latency increase</span>
+                </div>
+                <p className="guardrail-description">
+                  {isStrictLatency
+                    ? 'Strict (200ms): cache layer changes detected, speed-sensitive endpoints'
+                    : 'Standard (500ms): typical deployment, normal latency tolerance'}
+                </p>
+              </div>
+
+              <div className="guardrail-section">
+                <h3>🔄 Rollback Authority</h3>
+                <div className="rollback-setting">
+                  <span className={`setting-badge ${data.rollback_on_violation ? 'enabled' : 'disabled'}`}>
+                    {data.rollback_on_violation ? '✓ Automatic' : '✗ Manual'}
+                  </span>
+                </div>
+                <p className="guardrail-description">
+                  {data.rollback_on_violation
+                    ? 'System will automatically trigger rollback if guardrails are violated'
+                    : 'Manual approval required before rollback execution'}
+                </p>
+              </div>
+
+              <div className="guardrail-hint">
+                <strong>💡 How it works:</strong> During canary deployment, each stage is monitored against these guardrails. If error rate or latency
+                exceeds the threshold, the deployment is either automatically rolled back or flagged for manual intervention.
+              </div>
+            </div>
+          );
+        }
+
+        window.ContractSummary = ContractSummary;
+    </script>
+
+    <!-- Main Dashboard Component -->
+    <script type="text/babel">
+        function Dashboard() {
+          const [riskData, setRiskData] = React.useState(null);
+          const [historyData, setHistoryData] = React.useState(null);
+          const [canaryData, setCanaryData] = React.useState(null);
+          const [loading, setLoading] = React.useState(true);
+          const [error, setError] = React.useState(null);
+
+          React.useEffect(() => {
+            const fetchDashboardData = async () => {
+              try {
+                setLoading(true);
+                const [riskRes, historyRes, canaryRes] = await Promise.all([
+                  fetch('/api/dashboard/risk'),
+                  fetch('/api/dashboard/history'),
+                  fetch('/api/dashboard/canary'),
+                ]);
+
+                if (!riskRes.ok || !historyRes.ok || !canaryRes.ok) {
+                  throw new Error('Failed to fetch dashboard data');
+                }
+
+                const [risk, history, canary] = await Promise.all([
+                  riskRes.json(),
+                  historyRes.json(),
+                  canaryRes.json(),
+                ]);
+
+                setRiskData(risk);
+                setHistoryData(history);
+                setCanaryData(canary);
+                setError(null);
+              } catch (err) {
+                setError(err.message);
+                console.error('Dashboard fetch error:', err);
+              } finally {
+                setLoading(false);
+              }
+            };
+
+            fetchDashboardData();
+            const interval = setInterval(fetchDashboardData, 10000);
+
+            return () => clearInterval(interval);
+          }, []);
+
+          if (loading && !riskData) {
+            return (
+              <div className="dashboard-container">
+                <div className="loading">Loading dashboard...</div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="dashboard-container">
+              <header className="dashboard-header">
+                <h1>🚀 Chaos Negotiator Dashboard</h1>
+                <p>Intelligent Deployment Risk & Reliability Management</p>
+              </header>
+
+              {error && (
+                <div className="error-banner">
+                  ⚠️ {error}
+                </div>
+              )}
+
+              <div className="dashboard-grid">
+                <section className="dashboard-section full-width">
+                  <h2>Risk Assessment & Confidence</h2>
+                  {riskData && <window.RiskCard data={riskData} />}
+                </section>
+
+                <section className="dashboard-section full-width">
+                  <h2>Canary Deployment Strategy</h2>
+                  {canaryData && <window.CanaryTimeline data={canaryData} />}
+                </section>
+
+                <section className="dashboard-section half-width">
+                  <h2>Guardrail Summary</h2>
+                  {canaryData && <window.ContractSummary data={canaryData} />}
+                </section>
+
+                <section className="dashboard-section half-width">
+                  <h2>Recent Deployment History</h2>
+                  {historyData && <window.HistoryTable data={historyData} />}
+                </section>
+              </div>
+
+              <footer className="dashboard-footer">
+                <p>Last updated: {new Date().toLocaleTimeString()}</p>
+              </footer>
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Dashboard />);
+    </script>
+</body>
+</html>

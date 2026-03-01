@@ -1,0 +1,38 @@
+.container {
+  padding: 24px;
+  font-family: system-ui;
+}
+
+.card {
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.metric {
+  display: flex;
+  justify-content: space-between;
+  margin: 8px 0;
+}
+
+.badge.medium { color: orange; }
+.badge.high { color: red; }
+.badge.low { color: green; }
+
+.stage-bar {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.stage {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #eee;
+}
+
+.stage.active {
+  background: #007bff;
+  color: white;
+}

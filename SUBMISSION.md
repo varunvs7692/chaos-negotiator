@@ -190,6 +190,7 @@ SUGGESTED IMPROVEMENTS:
 
 - **Contract-based deployment safety** (not just pass/fail gates)
 - **SLO-aware risk prediction** with confidence scoring
+- **Self-tuning predictor**—background scheduler auto-adjusts ensemble weights
 - **Automatic guardrail generation** proportional to risk
 - **Smart rollback validation** with auto-generated steps
 - **Agentic negotiation** using Semantic Kernel orchestration for developer interaction

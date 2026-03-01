@@ -14,6 +14,7 @@ from chaos_negotiator.models.contract import (
 )
 from chaos_negotiator.models.risk import RiskAssessment, RiskFactor
 from chaos_negotiator.models.rollback import RollbackPlan, RollbackStep
+from chaos_negotiator.models.outcome import DeploymentOutcome
 
 __all__ = [
     "DeploymentContext",
@@ -28,4 +29,5 @@ __all__ = [
     "RiskFactor",
     "RollbackPlan",
     "RollbackStep",
+    "DeploymentOutcome",
 ]

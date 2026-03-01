@@ -27,8 +27,12 @@ Analyzes code changes, service dependencies, and SLOs. Generates contracts answe
 
 ### 2. **SLO-Aware Risk Prediction**
 - Identifies high-risk patterns (caching, DB migrations, API changes)
-- Predicts latency/error impact
-- Confidence-scored assessments
+- Combines heuristic rules with a lightweight ML model to score risk
+- Confidence-scored assessments with transparent breakdown
+- **Learns from deployment history** via a simple SQLite store
+  and auto-tunes weights over time
+- **Auto-tuning scheduler** runs in the background to keep weights
+  calibrated without manual intervention
 
 ### 3. **Enforced Guardrails**
 - Error rate budgets
@@ -42,13 +46,29 @@ Analyzes code changes, service dependencies, and SLOs. Generates contracts answe
 - Identifies data loss risk
 - Validates tested procedures
 
+### 5. **Dynamic Canary Engine**
+- Risk and confidence‑driven rollout stages
+  - High confidence → fast progression (fewer stages)
+  - High risk + low confidence → slow, cautious rollout (more stages)
+- Auto‑adjusts guardrails (error rate, latency) per stage
+- Detects violations and triggers automatic rollback
+- Shows recommended traffic percentage for each stage
+
 ### 5. **Agentic Negotiation**
 Intelligent dialogue handling deployments:
 - Explains why guardrails matter
 - Suggests mitigations for high-risk changes
 - Enforces non-negotiable safety terms
 
-## 🚀 Quick Start
+## �️ Interactive Dashboard
+
+A built-in **React-based dashboard** provides real‑time visibility into the agent's
+risk predictions, canary strategies, deployment history and contract guardrails.
+Open your browser after starting the server (see Quick Start) and navigate to
+`http://localhost:8000` to explore. The code lives under `chaos_negotiator/static`
+and detailed usage notes are available in [DASHBOARD.md](DASHBOARD.md).
+
+## �🚀 Quick Start
 
 ```bash
 # Clone & install
@@ -61,6 +81,41 @@ python -m chaos_negotiator.main
 
 # Run with custom deployment context
 python -m chaos_negotiator.main deployment.json
+```
+### 🧠 Learning from Deployments
+
+After a deployment completes you can log the real-world outcome so the
+hybrid predictor improves itself over time. The agent ships with a
+lightweight SQLite store by default; the path is controlled by
+`CN_HISTORY_DB`.
+
+You can also enable an automatic background scheduler that
+re-tunes the ensemble weights without manual intervention:
+
+```bash
+# turn off auto‑tuning if you want full control
+CN_ENABLE_TUNING=true
+
+# how often the scheduler wakes up (seconds)
+CN_TUNING_INTERVAL_SEC=300
+```
+
+```python
+from chaos_negotiator.agent import ChaosNegotiatorAgent
+
+agent = ChaosNegotiatorAgent()
+# ...perform a deployment using your orchestration tool...
+
+# when metrics are available, record the outcome:
+agent.record_deployment_result(
+  context,
+  actual_error_rate_percent=0.12,
+  actual_latency_change_percent=3.4,
+  rollback_triggered=False,
+)
+
+# tune the ensemble weights periodically (cron, startup, etc.)
+agent.risk_predictor.tune_weights()
 ```
 
 ### Example: Generate a Contract

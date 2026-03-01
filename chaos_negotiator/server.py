@@ -9,6 +9,7 @@ from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response  # type: ignore[import-not-found]
 from fastapi.responses import FileResponse  # type: ignore[import-not-found]
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from chaos_negotiator.agent import ChaosNegotiatorAgent
@@ -22,7 +23,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-STATIC_INDEX_PATH = Path(__file__).resolve().parent / "static" / "index.html"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
@@ -45,6 +47,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     logger.info("Shutting down Chaos Negotiator server...")
+    # gracefully stop background scheduler if agent supports it
+    if agent and hasattr(agent, "shutdown"):
+        try:
+            agent.shutdown()
+        except Exception as e:
+            logger.error(f"Error during agent shutdown: {e}")
 
 
 # Create FastAPI app
@@ -53,6 +61,14 @@ app = FastAPI(
     description="AI agent that treats every deploy like a contract between developers and reliability goals",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# allow dashboard page or external tools to call our API during development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -96,9 +112,9 @@ class AnalysisResponse(BaseModel):
 
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
-    """Serve UI homepage; fallback to JSON if static file is missing."""
-    if STATIC_INDEX_PATH.exists():
-        return FileResponse(str(STATIC_INDEX_PATH))
+    """Serve dashboard homepage; fallback to JSON if static file is missing."""
+    if DASHBOARD_PATH.exists():
+        return FileResponse(str(DASHBOARD_PATH))
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 
@@ -112,6 +128,18 @@ async def api_info() -> dict[str, str]:
 async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="healthy" if agent else "unhealthy", agent_ready=agent is not None)
+
+
+@app.get("/static/{file_path:path}", response_model=None)
+async def serve_static(file_path: str) -> FileResponse | dict[str, str]:
+    """Serve static files (CSS, JS, images)."""
+    try:
+        full_path = STATIC_DIR / file_path
+        if full_path.exists() and full_path.is_file():
+            return FileResponse(str(full_path))
+    except Exception as e:
+        logger.error(f"Error serving static file {file_path}: {e}")
+    raise HTTPException(status_code=404, detail="Static file not found")
 
 
 def _model_to_dict(value: Any) -> dict[str, Any]:
@@ -214,6 +242,89 @@ async def run_demo(
     except Exception as e:
         logger.error(f"Error running demo: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to run demo scenario")
+
+
+@app.get("/api/dashboard/risk")
+async def get_latest_risk() -> dict[str, Any]:
+    """Get latest risk assessment from most recent deployment."""
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    try:
+        context = get_example_context("default")
+        assessment = agent.risk_predictor.predict(context)
+
+        return {
+            "risk_score": assessment.risk_score,
+            "risk_level": assessment.risk_level,
+            "confidence_percent": assessment.confidence_percent,
+            "identified_factors": [f.value for f in assessment.identified_factors],
+            "predicted_error_rate_increase": assessment.predicted_error_rate_increase_percent,
+            "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
+        }
+    except Exception as e:
+        logger.error(f"Error getting risk assessment: {e}")
+        raise HTTPException(status_code=400, detail="Failed to get risk assessment")
+
+
+@app.get("/api/dashboard/history")
+async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
+    """Get recent deployment history from the learning store."""
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    try:
+        outcomes = agent.history_store.recent(limit)
+        return {
+            "total": len(outcomes),
+            "outcomes": [
+                {
+                    "deployment_id": o.deployment_id,
+                    "heuristic_score": o.heuristic_score,
+                    "ml_score": o.ml_score,
+                    "final_score": o.final_score,
+                    "actual_error_rate": o.actual_error_rate_percent,
+                    "actual_latency_change": o.actual_latency_change_percent,
+                    "rollback_triggered": o.rollback_triggered,
+                    "timestamp": o.timestamp.isoformat(),
+                }
+                for o in outcomes
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error getting deployment history: {e}")
+        raise HTTPException(status_code=400, detail="Failed to get deployment history")
+
+
+@app.get("/api/dashboard/canary")
+async def get_canary_strategy() -> dict[str, Any]:
+    """Get canary deployment strategy for a default scenario."""
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    try:
+        context = get_example_context("default")
+        policy = agent.generate_canary_policy(context)
+
+        return {
+            "deployment_id": policy.deployment_id,
+            "risk_score": policy.risk_score,
+            "confidence_percent": policy.confidence_percent,
+            "error_rate_threshold": policy.error_rate_threshold,
+            "latency_threshold_ms": policy.latency_threshold_ms,
+            "stages": [
+                {
+                    "stage_number": s.stage_number,
+                    "traffic_percent": s.traffic_percent,
+                    "duration_seconds": s.duration_seconds,
+                    "name": s.name,
+                }
+                for s in policy.stages
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Error getting canary strategy: {e}")
+        raise HTTPException(status_code=400, detail="Failed to get canary strategy")
 
 
 if __name__ == "__main__":

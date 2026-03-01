@@ -11,7 +11,7 @@ from applicationinsights import TelemetryClient  # type: ignore[import-untyped]
 from chaos_negotiator.models.deployment import DeploymentContext
 from chaos_negotiator.models.contract import DeploymentContract
 from chaos_negotiator.models.risk import RiskAssessment
-from chaos_negotiator.predictors.risk_predictor import RiskPredictor
+from chaos_negotiator.predictors.ensemble import EnsembleRiskPredictor
 from chaos_negotiator.validators.rollback_validator import RollbackValidator
 from chaos_negotiator.contracts.contract_engine import ContractEngine
 
@@ -40,7 +40,8 @@ class SemanticKernelOrchestrator:
         self._setup_telemetry()
 
         # Initialize agent modules as SK plugins
-        self.risk_predictor = RiskPredictor()
+        # use the ensemble predictor for smarter risk scoring
+        self.risk_predictor = EnsembleRiskPredictor()
         self.rollback_validator = RollbackValidator()
         self.contract_engine = ContractEngine()
 

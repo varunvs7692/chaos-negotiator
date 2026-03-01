@@ -1,5 +1,7 @@
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
 from chaos_negotiator.agent import ChaosNegotiatorAgent
+from chaos_negotiator.predictors.history_store import DeploymentHistoryStore
+from chaos_negotiator.predictors.ensemble import EnsembleRiskPredictor
 
 
 def test_risk_prediction():
@@ -29,6 +31,47 @@ def test_risk_prediction():
     assert contract.risk_score >= 0 and contract.risk_score <= 100
     assert len(contract.guardrails) > 0
     assert len(contract.validators) > 0
+    # ensemble predictor should append breakdown info
+    assert "[Ensemble]" in contract.risk_summary or "[Ensemble]" in contract.reasoning
+
+
+def test_agent_records_outcome(tmp_path):
+    """Ensure the agent can log a deployment result into the history store."""
+    context = DeploymentContext(
+        deployment_id="test-004",
+        service_name="svc",
+        environment="staging",
+        version="v0",
+        changes=[
+            DeploymentChange(
+                file_path="x.py",
+                change_type="modify",
+                lines_changed=5,
+                description="minor",
+            )
+        ],
+        total_lines_changed=5,
+    )
+
+    # point the agent at a temp db so we can inspect it
+    db_path = tmp_path / "hist.db"
+    agent = ChaosNegotiatorAgent()
+    agent.history_store = DeploymentHistoryStore(str(db_path))
+    agent.risk_predictor = EnsembleRiskPredictor(history_store=agent.history_store)
+
+    # simulate a deployment and record an outcome
+    contract = agent.process_deployment(context)
+    agent.record_deployment_result(
+        context,
+        actual_error_rate_percent=0.02,
+        actual_latency_change_percent=1.0,
+        rollback_triggered=False,
+    )
+
+    # store should now contain exactly one row
+    outcomes = agent.history_store.recent(10)
+    assert len(outcomes) == 1
+    assert outcomes[0].deployment_id == "test-004"
 
 
 def test_contract_drafting():

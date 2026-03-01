@@ -168,6 +168,21 @@ DeploymentContract (output)
 
 ## 🧠 Risk Assessment Logic
 
+### Background Weight Tuning Scheduler
+
+A lightweight daemon thread runs inside the agent and invokes
+`predictor.tune_weights()` on a configurable interval (default 300 s).
+Environment variables control behavior:
+
+```text
+CN_ENABLE_TUNING=true            # turn off to disable
+CN_TUNING_INTERVAL_SEC=300       # tuning frequency in seconds
+```
+
+This autonomously adjusts ensemble weights based on recent deployment
+errors, making the predictor self‑learning and reducing manual maintenance.
+
+
 ```
 DeploymentContext (with changes)
     │
@@ -260,7 +275,7 @@ PERMISSION CHANGES:
 ChaosNegotiatorAgent
 ├─ __init__(api_key)
 │  ├─ Creates Azure OpenAI client
-│  ├─ Initializes RiskPredictor
+│  ├─ Initializes EnsembleRiskPredictor (hybrid ML+heuristic engine)
 │  ├─ Initializes RollbackValidator
 │  └─ Initializes ContractEngine
 │
@@ -280,11 +295,45 @@ ChaosNegotiatorAgent
    └─ Returns contract.reasoning
 ```
 
-### RiskPredictor
+### RiskPredictor / Ensemble
+
+### Deployment History Store & Learning
+
+```
+DeploymentOutcome
+├─ deployment_id
+├─ heuristic_score
+├─ ml_score
+├─ final_score
+├─ actual_error_rate_percent
+├─ actual_latency_change_percent
+├─ rollback_triggered
+└─ timestamp
+```
 
 ```python
-RiskPredictor
-├─ predict(context) → RiskAssessment
+DeploymentHistoryStore
+├─ __init__(db_path)
+├─ save(outcome)
+├─ recent(limit)
+```
+
+EnsembleRiskPredictor now holds a store instance and provides:
+```
+record_outcome(outcome)         # persist a result
+ tune_weights(recent=100)      # adjust weights based on error
+```
+
+The agent exposes `record_deployment_result(...)` which makes the
+prediction again, packages scores with real metrics, and writes an
+outcome.  Periodic tuning (cron or on startup) keeps the hybrid model
+adapting.
+
+### RiskPredictor / Ensemble
+
+```python
+RiskPredictor  (wrapped by EnsembleRiskPredictor)
+├─ predict(context) → RiskAssessment  # runs heuristic logic
 │  ├─ Analyzes each change description
 │  ├─ Pattern matches against risk_patterns
 │  ├─ Accumulates risk factors
@@ -300,6 +349,51 @@ RiskPredictor
    ├─ api: +8% latency, +1.5% errors
    ├─ traffic: +20% latency
    └─ ... (4 more patterns)
+```
+
+### RollbackValidator
+
+### MLRiskPredictor
+
+```python
+MLRiskPredictor
+├─ predict(context) → float (0.0–1.0)
+│  ├─ extracts features (change count, lines, db/api flags)
+│  ├─ linear combination + bias
+│  └─ sigmoid mapping
+```
+
+### EnsembleRiskPredictor
+
+```python
+EnsembleRiskPredictor
+├─ heuristic = RiskPredictor()
+├─ ml = MLRiskPredictor()
+├─ predict(context) → RiskAssessment
+│  ├─ call heuristic.predict()
+│  ├─ call ml.predict() * 100
+│  ├─ combine scores by weights (default 60/40)
+│  ├─ compute confidence (agreement + calibration)
+│  ├─ reassign risk_score and level
+│  └─ append breakdown to reasoning
+```
+
+### CanaryOrchestrator
+
+```python
+CanaryOrchestrator
+├─ generate_policy(context, assessment) → CanaryPolicy
+│  ├─ assess risk + confidence
+│  ├─ determine stage strategy
+│  │  (high conf → fast, low conf → slow)
+│  ├─ set guardrails (error rate, latency)
+│  └─ return list of CanaryStages
+│
+├─ next_stage(policy, metrics) → CanaryResult
+│  ├─ check if metrics violate guardrails
+│  ├─ if violated: recommend rollback (0% traffic)
+│  ├─ if safe: advance to next stage
+│  └─ return recommendation + reason
 ```
 
 ### RollbackValidator
