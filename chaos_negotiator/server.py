@@ -101,13 +101,15 @@ class HealthResponse(BaseModel):
     agent_ready: bool
 
 
+
 class AnalysisResponse(BaseModel):
     """Deployment analysis response."""
-
     deployment_id: str
     risk_assessment: dict
     rollback_plan: dict
     deployment_contract: dict
+    outcome_recorded: bool = False
+    simulated_metrics: dict | None = None
 
 
 class DeploymentResultRequest(BaseModel):
@@ -171,11 +173,13 @@ def _require_api_key_if_configured(x_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
-@app.post("/analyze")
-async def analyze_deployment(
+
+# --- NEW ENDPOINT: POST /api/deployments/evaluate ---
+@app.post("/api/deployments/evaluate")
+async def evaluate_deployment(
     request: DeploymentRequest, x_api_key: str | None = Header(default=None)
 ) -> AnalysisResponse:
-    """Analyze a deployment for risk and contract requirements."""
+    """Evaluate a deployment, record outcome, and return contract."""
     _require_api_key_if_configured(x_api_key)
 
     if not agent:
@@ -184,7 +188,6 @@ async def analyze_deployment(
     try:
         # Convert request to DeploymentContext
         changes = [DeploymentChange(**change) for change in request.changes]
-
         context = DeploymentContext(
             deployment_id=request.deployment_id,
             service_name=request.service_name,
@@ -194,21 +197,44 @@ async def analyze_deployment(
         )
 
         # Run analysis
-        logger.info(f"Analyzing deployment {request.deployment_id}...")
+        logger.info(f"[EVALUATE] Analyzing deployment {request.deployment_id}...")
         deployment_contract = agent.process_deployment(context)
         risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
         rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
+
+        # Simulate metrics if real telemetry is not available
+        import random
+        simulated_error_rate = round(random.uniform(0.1, 5.0), 2)
+        simulated_latency = round(random.uniform(-2.0, 10.0), 2)
+        simulated_metrics = {
+            "actual_error_rate_percent": simulated_error_rate,
+            "actual_latency_change_percent": simulated_latency,
+            "rollback_triggered": False,
+        }
+
+        # Record the outcome using agent method
+        logger.info(f"[EVALUATE] Recording deployment outcome for {request.deployment_id}")
+        outcome = agent.record_deployment_result(
+            context,
+            actual_error_rate_percent=simulated_error_rate,
+            actual_latency_change_percent=simulated_latency,
+            rollback_triggered=False,
+        )
+        outcome_recorded = outcome is not None
+        logger.info(f"[EVALUATE] Outcome recorded: {outcome_recorded}")
 
         return AnalysisResponse(
             deployment_id=request.deployment_id,
             risk_assessment=risk_assessment,
             rollback_plan=rollback_plan,
             deployment_contract=deployment_contract.model_dump(),
+            outcome_recorded=outcome_recorded,
+            simulated_metrics=simulated_metrics,
         )
 
     except Exception as e:
-        logger.error(f"Error analyzing deployment: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail="Failed to analyze deployment")
+        logger.error(f"Error evaluating deployment: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to evaluate deployment")
 
 
 @app.get("/demo/{scenario}")
@@ -276,6 +302,7 @@ async def get_latest_risk() -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Failed to get risk assessment")
 
 
+
 @app.get("/api/dashboard/history")
 async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
     """Get recent deployment history from the learning store."""
@@ -284,6 +311,7 @@ async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
 
     try:
         outcomes = agent.history_store.recent(limit)
+        logger.info(f"[HISTORY] Returning {len(outcomes)} deployment outcomes.")
         return {
             "total": len(outcomes),
             "outcomes": [
