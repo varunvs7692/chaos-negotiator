@@ -133,14 +133,81 @@ jobs:
 
         APP_URL="https://$APP_FQDN"
         echo "Running smoke tests against $APP_URL"
-
-        curl -fsS "$APP_URL/api" >/dev/null
-
         ANALYZE_BODY='{"deployment_id":"smoke-deploy","service_name":"smoke-service","environment":"staging","version":"v0.0.1","changes":[{"file_path":"src/smoke.py","change_type":"modify","lines_changed":1,"risk_tags":["test"],"description":"CI smoke test"}]}'
 
-        curl -fsS -X POST "$APP_URL/analyze" \
-          -H "Content-Type: application/json" \
-          --data "$ANALYZE_BODY" >/dev/null
+        print_diagnostics() {
+          echo "----- Container App diagnostics -----"
+          az containerapp show \
+            --name ${{ env.AZURE_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "{latestRevisionName:properties.latestRevisionName,latestReadyRevisionName:properties.latestReadyRevisionName,traffic:properties.configuration.ingress.traffic}" \
+            -o json || true
+          az containerapp revision list \
+            --name ${{ env.AZURE_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "[?properties.active].{name:name,createdTime:properties.createdTime,healthState:properties.healthState,provisioningState:properties.provisioningState,trafficWeight:properties.trafficWeight}" \
+            -o table || true
+          echo "-------------------------------------"
+        }
+
+        run_probe() {
+          method="$1"
+          path="$2"
+          data="${3:-}"
+          body_file
+          body_file=$(mktemp)
+
+          if [ -n "$data" ]; then
+            status_code=$(curl -sS -o "$body_file" -w "%{http_code}" -X "$method" "$APP_URL$path" \
+              -H "Content-Type: application/json" \
+              --data "$data")
+          else
+            status_code=$(curl -sS -o "$body_file" -w "%{http_code}" -X "$method" "$APP_URL$path")
+          fi
+
+          if [ "$status_code" != "200" ]; then
+            echo "Probe failed: $method $path returned $status_code"
+            echo "Response body:"
+            cat "$body_file" || true
+            rm -f "$body_file"
+            return 1
+          fi
+
+          rm -f "$body_file"
+          return 0
+        }
+
+        wait_for_endpoint() {
+          method="$1"
+          path="$2"
+          data="${3:-}"
+          label="$4"
+
+          for i in {1..30}; do
+            if run_probe "$method" "$path" "$data"; then
+              echo "$label passed on attempt $i/30"
+              return 0
+            fi
+            echo "$label not ready yet (attempt $i/30). Waiting 10s..."
+            sleep 10
+          done
+
+          echo "$label failed after 30 attempts."
+          print_diagnostics
+          return 1
+        }
+
+        echo "Waiting for app readiness: GET /health"
+        wait_for_endpoint "GET" "/health" "" "Health check"
+
+        echo "Smoke test: GET /api"
+        wait_for_endpoint "GET" "/api" "" "GET /api"
+
+        echo "Smoke test: POST /api/deployments/evaluate"
+        wait_for_endpoint "POST" "/api/deployments/evaluate" "$ANALYZE_BODY" "POST /api/deployments/evaluate"
+
+        echo "Smoke test: POST /analyze (compatibility alias)"
+        wait_for_endpoint "POST" "/analyze" "$ANALYZE_BODY" "POST /analyze"
     
     - name: Set secrets in Key Vault
       if: success()
