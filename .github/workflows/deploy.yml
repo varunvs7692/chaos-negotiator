@@ -125,6 +125,8 @@ jobs:
     - name: Post-deploy smoke test
       if: success()
       run: |
+        set -euo pipefail
+
         APP_FQDN=$(az containerapp show --name ${{ env.AZURE_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query properties.configuration.ingress.fqdn -o tsv)
         if [ -z "$APP_FQDN" ]; then
           echo "Failed to resolve Container App FQDN"
@@ -154,7 +156,6 @@ jobs:
           method="$1"
           path="$2"
           data="${3:-}"
-          body_file
           body_file=$(mktemp)
 
           if [ -n "$data" ]; then

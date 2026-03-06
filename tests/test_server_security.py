@@ -41,3 +41,35 @@ def test_security_headers_present() -> None:
     assert response.headers.get("x-content-type-options") == "nosniff"
     assert response.headers.get("x-frame-options") == "DENY"
     assert response.headers.get("referrer-policy") == "no-referrer"
+
+
+def test_analyze_alias_matches_evaluate_shape() -> None:
+    """Both evaluate and analyze endpoints should behave as compatible APIs."""
+    payload = {
+        "deployment_id": "compat-test-001",
+        "service_name": "compat-service",
+        "environment": "staging",
+        "version": "v0.0.1",
+        "changes": [
+            {
+                "file_path": "src/smoke.py",
+                "change_type": "modify",
+                "lines_changed": 1,
+                "risk_tags": ["test"],
+                "description": "Compatibility endpoint test",
+            }
+        ],
+    }
+
+    with TestClient(server.app) as client:
+        evaluate_resp = client.post("/api/deployments/evaluate", json=payload)
+        analyze_resp = client.post("/analyze", json=payload)
+
+    assert evaluate_resp.status_code == 200
+    assert analyze_resp.status_code == 200
+
+    evaluate_data = evaluate_resp.json()
+    analyze_data = analyze_resp.json()
+
+    assert set(evaluate_data.keys()) == set(analyze_data.keys())
+    assert evaluate_data["deployment_id"] == analyze_data["deployment_id"] == payload["deployment_id"]

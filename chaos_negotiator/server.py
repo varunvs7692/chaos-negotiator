@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
     logger.info("Shutting down Chaos Negotiator server...")
-    
+
     # Stop background risk monitoring task
     if risk_monitor_task:
         logger.info("Stopping background risk monitoring task...")
@@ -77,7 +77,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await risk_monitor_task
         except asyncio.CancelledError:
             pass
-    
+
     # gracefully stop background scheduler if agent supports it
     if agent and hasattr(agent, "shutdown"):
         try:
@@ -204,14 +204,10 @@ def _require_api_key_if_configured(x_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
-# --- NEW ENDPOINT: POST /api/deployments/evaluate ---
-@app.post("/api/deployments/evaluate")
-async def evaluate_deployment(
-    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+def _evaluate_deployment_request(
+    request: DeploymentRequest, operation_label: str
 ) -> AnalysisResponse:
-    """Evaluate a deployment, record outcome, and return contract."""
-    _require_api_key_if_configured(x_api_key)
-
+    """Evaluate deployment input and return the standard analysis response."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
@@ -227,7 +223,7 @@ async def evaluate_deployment(
         )
 
         # Run analysis
-        logger.info(f"[EVALUATE] Analyzing deployment {request.deployment_id}...")
+        logger.info(f"[{operation_label}] Analyzing deployment {request.deployment_id}...")
         deployment_contract = agent.process_deployment(context)
         risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
         rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
@@ -244,7 +240,7 @@ async def evaluate_deployment(
         }
 
         # Record the outcome using agent method
-        logger.info(f"[EVALUATE] Recording deployment outcome for {request.deployment_id}")
+        logger.info(f"[{operation_label}] Recording deployment outcome for {request.deployment_id}")
         outcome = agent.record_deployment_result(
             context,
             actual_error_rate_percent=simulated_error_rate,
@@ -252,7 +248,7 @@ async def evaluate_deployment(
             rollback_triggered=False,
         )
         outcome_recorded = outcome is not None
-        logger.info(f"[EVALUATE] Outcome recorded: {outcome_recorded}")
+        logger.info(f"[{operation_label}] Outcome recorded: {outcome_recorded}")
 
         return AnalysisResponse(
             deployment_id=request.deployment_id,
@@ -264,8 +260,26 @@ async def evaluate_deployment(
         )
 
     except Exception as e:
-        logger.error(f"Error evaluating deployment: {e}", exc_info=True)
+        logger.error(f"Error in {operation_label.lower()}: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to evaluate deployment")
+
+
+@app.post("/api/deployments/evaluate")
+async def evaluate_deployment(
+    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+) -> AnalysisResponse:
+    """Evaluate a deployment, record outcome, and return contract."""
+    _require_api_key_if_configured(x_api_key)
+    return _evaluate_deployment_request(request, "EVALUATE")
+
+
+@app.post("/analyze")
+async def analyze_deployment(
+    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+) -> AnalysisResponse:
+    """Backward-compatible alias for /api/deployments/evaluate."""
+    _require_api_key_if_configured(x_api_key)
+    return _evaluate_deployment_request(request, "ANALYZE")
 
 
 @app.get("/demo/{scenario}")
@@ -449,17 +463,18 @@ async def get_canary_strategy() -> dict[str, Any]:
 
 # ==================== REAL-TIME WEBSOCKET SUPPORT ====================
 
+
 async def update_risk_state() -> dict[str, Any]:
     """Update the global risk state by calling the risk predictor."""
     global GLOBAL_STATE
-    
+
     if not agent:
         return GLOBAL_STATE["risk"]
-    
+
     try:
         context = get_example_context("default")
         assessment = agent.risk_predictor.predict(context)
-        
+
         GLOBAL_STATE["risk"] = {
             "risk_score": assessment.risk_score,
             "risk_level": assessment.risk_level,
@@ -469,7 +484,7 @@ async def update_risk_state() -> dict[str, Any]:
             "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
         }
         GLOBAL_STATE["last_update"] = asyncio.get_event_loop().time()
-        
+
         return GLOBAL_STATE["risk"]
     except Exception as e:
         logger.error(f"Error updating risk state: {e}")
@@ -479,14 +494,14 @@ async def update_risk_state() -> dict[str, Any]:
 async def risk_monitor_loop():
     """Background task that periodically updates the risk assessment."""
     logger.info("[RISK MONITOR] Starting background risk monitoring (5s interval)")
-    
+
     while True:
         try:
             await update_risk_state()
             logger.debug(f"[RISK MONITOR] Updated risk: score={GLOBAL_STATE['risk']['risk_score']}")
         except Exception as e:
             logger.error(f"[RISK MONITOR] Error in monitoring loop: {e}")
-        
+
         await asyncio.sleep(5)  # Update every 5 seconds
 
 
@@ -495,19 +510,19 @@ async def websocket_risk(websocket: WebSocket):
     """WebSocket endpoint for streaming real-time risk updates."""
     await websocket.accept()
     logger.info("WebSocket client connected to /ws/risk")
-    
+
     try:
         while True:
             # Get latest risk data from global state
             risk_data = GLOBAL_STATE["risk"].copy()
             risk_data["timestamp"] = asyncio.get_event_loop().time()
-            
+
             # Send to client
             await websocket.send_json(risk_data)
-            
+
             # Wait before next update
             await asyncio.sleep(5)
-            
+
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")
     except Exception as e:
