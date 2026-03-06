@@ -417,7 +417,20 @@
               ws.onmessage = (event) => {
                 try {
                   const data = JSON.parse(event.data);
-                  setRiskData(data);
+                  // Extract risk data from WebSocket message
+                  setRiskData({
+                    risk_score: data.risk_score || 0,
+                    risk_level: data.risk_level || 'unknown',
+                    confidence_percent: data.confidence_percent || 0,
+                    identified_factors: data.identified_factors || [],
+                    predicted_error_rate_increase: data.predicted_error_rate_increase || 0,
+                    predicted_latency_increase: data.predicted_latency_increase || 0,
+                    // Live metrics from Prometheus
+                    error_rate_percent: data.error_rate_percent || 0,
+                    latency_p95_ms: data.latency_p95_ms || 0,
+                    traffic_percentage: data.traffic_percentage || 0,
+                    request_volume_qps: data.request_volume_qps || 0,
+                  });
                 } catch (err) {
                   console.error('Error parsing WebSocket message:', err);
                 }

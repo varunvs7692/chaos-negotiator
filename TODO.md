@@ -5,25 +5,37 @@
 - [x] Fix server.py - Move background task from deprecated @app.on_event to lifespan
 - [x] Update dashboard.html - Replace REST polling with WebSocket connection
 - [x] Add CSS styles for connection status indicator
-- [x] Test the implementation
+- [x] Create Prometheus metrics provider module
+- [x] Integrate metrics provider into background monitoring loop
+- [x] Update WebSocket to include live metrics data
+- [x] Update dashboard to display live metrics
 
 ## Changes Made
 
 ### 1. server.py
-- Integrated background risk monitoring into the `lifespan` context manager (not in deprecated @app.on_event)
-- The background task starts automatically when FastAPI starts and stops gracefully on shutdown
-- Risk is recalculated every 5 seconds and stored in GLOBAL_STATE
-- WebSocket endpoint `/ws/risk` streams risk data to clients
+- Integrated background risk monitoring into the `lifespan` context manager
+- Added metrics provider initialization in lifespan
+- Updated `update_risk_state()` to fetch live metrics from Prometheus (or mock)
+- WebSocket endpoint `/ws/risk` now streams both risk assessment AND live metrics
 
-### 2. dashboard.html  
+### 2. chaos_negotiator/metrics/prometheus_provider.py (NEW)
+- Created PrometheusMetricsProvider class for querying Prometheus HTTP API
+- Functions: `get_error_rate()`, `get_latency_p95()`, `get_traffic_percentage()`, `get_request_volume()`, `get_all_metrics()`
+- Created MockMetricsProvider for development/testing without Prometheus
+
+### 3. dashboard.html  
 - Replaced REST polling with WebSocket connection to `/ws/risk`
-- Risk data updates in real-time when WebSocket messages arrive
+- Risk data and live metrics update in real-time
 - Added connection status indicator showing real-time connection state
 - Auto-reconnect logic when WebSocket disconnects
-- History and canary data still fetched via REST but with longer interval (30s)
 
-### 3. dashboard.css
+### 4. dashboard.css
 - Added CSS styles for connection status indicator
 - Green pulsing indicator when connected
 - Red indicator when disconnected
+
+## Configuration
+- Set `PROMETHEUS_URL` environment variable to connect to a real Prometheus instance
+- Set `MONITORED_SERVICE` to specify which service to monitor (default: "user-service")
+- Without PROMETHEUS_URL, the system uses MockMetricsProvider with simulated data
 

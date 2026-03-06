@@ -16,6 +16,11 @@ from pydantic import BaseModel
 from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.main import get_example_context
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
+from chaos_negotiator.metrics import get_metrics_provider
+from chaos_negotiator.metrics.prometheus_provider import (
+    PrometheusMetricsProvider,
+    MockMetricsProvider,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -40,8 +45,20 @@ GLOBAL_STATE = {
         "predicted_error_rate_increase": 0,
         "predicted_latency_increase": 0,
     },
+    "metrics": {
+        "error_rate_percent": 0,
+        "latency_p95_ms": 0,
+        "traffic_percentage": 0,
+        "request_volume_qps": 0,
+    },
     "last_update": None,
 }
+
+# Global metrics provider
+metrics_provider: PrometheusMetricsProvider | MockMetricsProvider | None = None
+
+# Default service to monitor
+MONITORED_SERVICE = os.getenv("MONITORED_SERVICE", "user-service")
 
 # Background task reference
 risk_monitor_task: asyncio.Task | None = None
@@ -50,8 +67,16 @@ risk_monitor_task: asyncio.Task | None = None
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown logic."""
-    global agent, risk_monitor_task
+    global agent, risk_monitor_task, metrics_provider
     logger.info("Starting Chaos Negotiator server...")
+
+    # Initialize metrics provider
+    try:
+        metrics_provider = get_metrics_provider()
+        logger.info(f"Metrics provider initialized: {type(metrics_provider).__name__}")
+    except Exception as e:
+        logger.error(f"Failed to initialize metrics provider: {e}")
+        metrics_provider = None
 
     # Initialize agent on startup
     try:
@@ -77,6 +102,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await risk_monitor_task
         except asyncio.CancelledError:
             pass
+    
+    # Close metrics provider
+    if metrics_provider and hasattr(metrics_provider, 'close'):
+        await metrics_provider.close()
     
     # gracefully stop background scheduler if agent supports it
     if agent and hasattr(agent, "shutdown"):
@@ -450,14 +479,47 @@ async def get_canary_strategy() -> dict[str, Any]:
 # ==================== REAL-TIME WEBSOCKET SUPPORT ====================
 
 async def update_risk_state() -> dict[str, Any]:
-    """Update the global risk state by calling the risk predictor."""
+    """Update the global risk state by fetching real metrics and calling the risk predictor."""
     global GLOBAL_STATE
     
     if not agent:
         return GLOBAL_STATE["risk"]
     
     try:
+        # Fetch real metrics from Prometheus (or mock if unavailable)
+        service_name = MONITORED_SERVICE
+        
+        if metrics_provider:
+            try:
+                # Get live metrics from provider
+                live_metrics = await metrics_provider.get_all_metrics(service_name)
+                
+                # Update GLOBAL_STATE with live metrics
+                GLOBAL_STATE["metrics"] = {
+                    "error_rate_percent": live_metrics.get("error_rate_percent") or 0,
+                    "latency_p95_ms": live_metrics.get("latency_p95_ms") or 0,
+                    "traffic_percentage": live_metrics.get("traffic_percentage") or 0,
+                    "request_volume_qps": live_metrics.get("request_volume_qps") or 0,
+                }
+                
+                logger.debug(f"[RISK MONITOR] Live metrics: error_rate={GLOBAL_STATE['metrics']['error_rate_percent']}%, "
+                           f"latency_p95={GLOBAL_STATE['metrics']['latency_p95_ms']}ms, "
+                           f"qps={GLOBAL_STATE['metrics']['request_volume_qps']}")
+                
+            except Exception as e:
+                logger.warning(f"[RISK MONITOR] Failed to fetch live metrics: {e}")
+        
+        # Build context from live metrics for risk prediction
         context = get_example_context("default")
+        
+        # Override with live metrics if available
+        if GLOBAL_STATE["metrics"]["error_rate_percent"]:
+            context.current_error_rate_percent = GLOBAL_STATE["metrics"]["error_rate_percent"]
+        if GLOBAL_STATE["metrics"]["latency_p95_ms"]:
+            context.current_p95_latency_ms = GLOBAL_STATE["metrics"]["latency_p95_ms"]
+        if GLOBAL_STATE["metrics"]["request_volume_qps"]:
+            context.current_qps = GLOBAL_STATE["metrics"]["request_volume_qps"]
+        
         assessment = agent.risk_predictor.predict(context)
         
         GLOBAL_STATE["risk"] = {
@@ -492,7 +554,7 @@ async def risk_monitor_loop():
 
 @app.websocket("/ws/risk")
 async def websocket_risk(websocket: WebSocket):
-    """WebSocket endpoint for streaming real-time risk updates."""
+    """WebSocket endpoint for streaming real-time risk updates and live metrics."""
     await websocket.accept()
     logger.info("WebSocket client connected to /ws/risk")
     
@@ -500,10 +562,17 @@ async def websocket_risk(websocket: WebSocket):
         while True:
             # Get latest risk data from global state
             risk_data = GLOBAL_STATE["risk"].copy()
-            risk_data["timestamp"] = asyncio.get_event_loop().time()
+            metrics_data = GLOBAL_STATE["metrics"].copy()
+            
+            # Combine risk and metrics data
+            response_data = {
+                **risk_data,
+                **metrics_data,
+                "timestamp": asyncio.get_event_loop().time(),
+            }
             
             # Send to client
-            await websocket.send_json(risk_data)
+            await websocket.send_json(response_data)
             
             # Wait before next update
             await asyncio.sleep(5)
