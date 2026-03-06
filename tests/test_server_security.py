@@ -72,4 +72,6 @@ def test_analyze_alias_matches_evaluate_shape() -> None:
     analyze_data = analyze_resp.json()
 
     assert set(evaluate_data.keys()) == set(analyze_data.keys())
-    assert evaluate_data["deployment_id"] == analyze_data["deployment_id"] == payload["deployment_id"]
+    assert (
+        evaluate_data["deployment_id"] == analyze_data["deployment_id"] == payload["deployment_id"]
+    )
