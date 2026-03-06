@@ -5,12 +5,14 @@ from azure.identity import DefaultAzureCredential
 from azure.monitor.query import MetricsQueryClient
 from azure.monitor.opentelemetry import configure_azure_monitor
 
+
 def configure_opentelemetry():
     connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
     if connection_string:
         configure_azure_monitor(
             connection_string=connection_string,
         )
+
 
 def get_live_metrics(deployment_id: str) -> dict:
     """
@@ -95,7 +97,9 @@ def get_live_metrics(deployment_id: str) -> dict:
                             latest = timeseries.data[-1].percentile95
                             previous = timeseries.data[-2].percentile95
                             if previous > 0:
-                                actual_latency_change_percent = ((latest - previous) / previous) * 100
+                                actual_latency_change_percent = (
+                                    (latest - previous) / previous
+                                ) * 100
 
         return {
             "actual_error_rate_percent": round(actual_error_rate_percent, 2),
@@ -111,4 +115,3 @@ def get_live_metrics(deployment_id: str) -> dict:
             "actual_latency_change_percent": round(random.uniform(-2.0, 10.0), 2),
             "rollback_triggered": False,
         }
-
