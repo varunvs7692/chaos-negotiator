@@ -44,6 +44,7 @@ class GlobalState(TypedDict):
     risk: RiskState
     last_update: float | None
 
+
 # Global state for real-time updates
 GLOBAL_STATE: GlobalState = {
     "risk": {
