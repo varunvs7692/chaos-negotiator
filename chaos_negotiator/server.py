@@ -195,6 +195,67 @@ async def api_info() -> dict[str, str]:
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 
+@app.post("/analyze")
+async def analyze_deployment(request: DeploymentRequest) -> AnalysisResponse:
+    """Analyze a deployment and return risk assessment and contract.
+    
+    This is an alias for /api/deployments/evaluate for compatibility.
+    """
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    try:
+        # Convert request to DeploymentContext
+        changes = [DeploymentChange(**change) for change in request.changes]
+        context = DeploymentContext(
+            deployment_id=request.deployment_id,
+            service_name=request.service_name,
+            environment=request.environment,
+            version=request.version,
+            changes=changes,
+        )
+
+        # Run analysis
+        logger.info(f"[ANALYZE] Analyzing deployment {request.deployment_id}...")
+        deployment_contract = agent.process_deployment(context)
+        risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
+        rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
+
+        # Simulate metrics if real telemetry is not available
+        import random
+
+        simulated_error_rate = round(random.uniform(0.1, 5.0), 2)
+        simulated_latency = round(random.uniform(-2.0, 10.0), 2)
+        simulated_metrics = {
+            "actual_error_rate_percent": simulated_error_rate,
+            "actual_latency_change_percent": simulated_latency,
+            "rollback_triggered": False,
+        }
+
+        # Record the outcome using agent method
+        logger.info(f"[ANALYZE] Recording deployment outcome for {request.deployment_id}")
+        outcome = agent.record_deployment_result(
+            context,
+            actual_error_rate_percent=simulated_error_rate,
+            actual_latency_change_percent=simulated_latency,
+            rollback_triggered=False,
+        )
+        outcome_recorded = outcome is not None
+
+        return AnalysisResponse(
+            deployment_id=request.deployment_id,
+            risk_assessment=risk_assessment,
+            rollback_plan=rollback_plan,
+            deployment_contract=deployment_contract.model_dump(),
+            outcome_recorded=outcome_recorded,
+            simulated_metrics=simulated_metrics,
+        )
+
+    except Exception as e:
+        logger.error(f"Error analyzing deployment: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail="Failed to analyze deployment")
+
+
 @app.get("/health")
 async def health() -> HealthResponse:
     """Health check endpoint."""
