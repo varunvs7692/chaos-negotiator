@@ -154,10 +154,20 @@ jobs:
     - name: Update Container App
       if: success()
       run: |
-        az containerapp update \
-          --name ${{ env.AZURE_APP_NAME }} \
-          --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-          --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+        for i in {1..5}; do
+          if az containerapp update \
+            --name ${{ env.AZURE_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}; then
+            echo "Container App update succeeded on attempt $i."
+            exit 0
+          fi
+          echo "Container App update failed on attempt $i. Retrying in 30s..."
+          sleep 30
+        done
+        echo "Container App update failed after 5 attempts."
+        exit 1
+
 
     - name: Post-deploy smoke test
       if: success()
