@@ -6,7 +6,7 @@ from azure.monitor.query import MetricsQueryClient
 from azure.monitor.opentelemetry import configure_azure_monitor
 
 
-def configure_opentelemetry():
+def configure_opentelemetry() -> None:
     connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
     if connection_string:
         configure_azure_monitor(
@@ -75,14 +75,16 @@ def get_live_metrics(deployment_id: str) -> dict:
             for metric in error_rate_response.metrics:
                 for timeseries in metric.timeseries:
                     for data in timeseries.data:
-                        error_count += data.count
+                        if data.count is not None:
+                            error_count += data.count
 
         request_count = 0
         if requests_response.metrics:
             for metric in requests_response.metrics:
                 for timeseries in metric.timeseries:
                     for data in timeseries.data:
-                        request_count += data.count
+                        if data.count is not None:
+                            request_count += data.count
 
         actual_error_rate_percent = (error_count / request_count * 100) if request_count > 0 else 0
 
@@ -94,9 +96,9 @@ def get_live_metrics(deployment_id: str) -> dict:
                     if timeseries.data:
                         # simple way to calculate change is to compare last 2 datapoints
                         if len(timeseries.data) > 1:
-                            latest = timeseries.data[-1].percentile95
-                            previous = timeseries.data[-2].percentile95
-                            if previous > 0:
+                            latest = getattr(timeseries.data[-1], "percentile95", 0)
+                            previous = getattr(timeseries.data[-2], "percentile95", 0)
+                            if previous > 0 and latest is not None:
                                 actual_latency_change_percent = (
                                     (latest - previous) / previous
                                 ) * 100

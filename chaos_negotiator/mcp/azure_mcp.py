@@ -69,7 +69,7 @@ class AzureMCPClient:
                 timespan=timedelta(minutes=time_window_minutes),
             )
 
-            if response.status == LogsQueryStatus.SUCCESS:
+            if response.status == LogsQueryStatus.SUCCESS and hasattr(response, "tables"):
                 table = response.tables[0]
                 if table.rows:
                     row = table.rows[0]
@@ -137,7 +137,7 @@ class AzureMCPClient:
             )
 
             deployments = []
-            if response.status == LogsQueryStatus.SUCCESS:
+            if response.status == LogsQueryStatus.SUCCESS and hasattr(response, "tables"):
                 for row in response.tables[0].rows:
                     deployments.append(
                         {
