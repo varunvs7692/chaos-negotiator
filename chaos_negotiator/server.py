@@ -15,7 +15,11 @@ from pydantic import BaseModel
 
 from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.main import get_example_context
+from chaos_negotiator.metrics.opentelemetry import configure_opentelemetry, get_live_metrics
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
+
+# Configure OpenTelemetry
+configure_opentelemetry()
 
 # Configure logging
 logging.basicConfig(
@@ -155,7 +159,6 @@ class AnalysisResponse(BaseModel):
     rollback_plan: dict
     deployment_contract: dict
     outcome_recorded: bool = False
-    simulated_metrics: dict | None = None
 
 
 class DeploymentResultRequest(BaseModel):
@@ -243,24 +246,16 @@ def _evaluate_deployment_request(
         risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
         rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
 
-        # Simulate metrics if real telemetry is not available
-        import random
-
-        simulated_error_rate = round(random.uniform(0.1, 5.0), 2)
-        simulated_latency = round(random.uniform(-2.0, 10.0), 2)
-        simulated_metrics = {
-            "actual_error_rate_percent": simulated_error_rate,
-            "actual_latency_change_percent": simulated_latency,
-            "rollback_triggered": False,
-        }
+        # Get live metrics
+        live_metrics = get_live_metrics(request.deployment_id)
 
         # Record the outcome using agent method
         logger.info(f"[{operation_label}] Recording deployment outcome for {request.deployment_id}")
         outcome = agent.record_deployment_result(
             context,
-            actual_error_rate_percent=simulated_error_rate,
-            actual_latency_change_percent=simulated_latency,
-            rollback_triggered=False,
+            actual_error_rate_percent=live_metrics["actual_error_rate_percent"],
+            actual_latency_change_percent=live_metrics["actual_latency_change_percent"],
+            rollback_triggered=live_metrics["rollback_triggered"],
         )
         outcome_recorded = outcome is not None
         logger.info(f"[{operation_label}] Outcome recorded: {outcome_recorded}")
@@ -271,7 +266,6 @@ def _evaluate_deployment_request(
             rollback_plan=rollback_plan,
             deployment_contract=deployment_contract.model_dump(),
             outcome_recorded=outcome_recorded,
-            simulated_metrics=simulated_metrics,
         )
 
     except Exception as e:
