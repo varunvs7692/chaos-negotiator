@@ -217,6 +217,7 @@ class ChaosNegotiatorAgent:
         Engage in interactive negotiation with the user about deployment safety.
         """
         logger.info("Starting interactive negotiation...")
+        return self.process_deployment(context)
 
     def shutdown(self) -> None:
         """Clean up resources before process exit."""

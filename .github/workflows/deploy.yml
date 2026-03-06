@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   IMAGE_NAME: chaos-negotiator
   AZURE_RESOURCE_GROUP: chaos-negotiator-rg
@@ -56,6 +60,29 @@ jobs:
             "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
             "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
           }
+
+    - name: Wait for Container App to become idle
+      if: success()
+      shell: bash
+      run: |
+        app_exists=$(az containerapp show --name ${{ env.AZURE_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query name -o tsv 2>/dev/null || true)
+        if [ -z "$app_exists" ]; then
+          echo "Container App does not exist yet. Continuing with infrastructure deployment."
+          exit 0
+        fi
+
+        for i in {1..36}; do
+          state=$(az containerapp show --name ${{ env.AZURE_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query properties.provisioningState -o tsv)
+          if [ "$state" = "Succeeded" ] || [ "$state" = "Failed" ] || [ "$state" = "Canceled" ]; then
+            echo "Container App is idle with provisioning state '$state'."
+            exit 0
+          fi
+          echo "Container App provisioning state is '$state' (attempt $i/36). Waiting 10s..."
+          sleep 10
+        done
+
+        echo "Container App is still busy after 6 minutes."
+        exit 1
 
     - name: Deploy Bicep infrastructure
       if: success()

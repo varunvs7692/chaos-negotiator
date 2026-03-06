@@ -3,14 +3,19 @@ from __future__ import annotations
 import os
 import threading
 import logging
+from typing import Protocol
 
 logger = logging.getLogger(__name__)
+
+
+class SupportsTuneWeights(Protocol):
+    def tune_weights(self) -> None: ...
 
 
 class WeightTuningScheduler:
     """Background scheduler that periodically tunes ensemble weights."""
 
-    def __init__(self, predictor) -> None:
+    def __init__(self, predictor: SupportsTuneWeights) -> None:
         self.predictor = predictor
         # interval defaults to 5 minutes
         self.interval_seconds = int(os.getenv("CN_TUNING_INTERVAL_SEC", "300"))

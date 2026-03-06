@@ -20,8 +20,8 @@ class DeploymentHistoryStore:
     def __init__(self, db_path: str | None = None) -> None:
         import os
 
-        db_path = db_path or os.getenv("CN_HISTORY_DB", "deployment_history.db")
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        resolved_db_path = db_path or os.getenv("CN_HISTORY_DB") or "deployment_history.db"
+        self.conn = sqlite3.connect(resolved_db_path, check_same_thread=False)
         self._ensure_table()
 
     def _ensure_table(self) -> None:

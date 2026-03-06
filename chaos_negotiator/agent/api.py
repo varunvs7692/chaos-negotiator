@@ -4,7 +4,8 @@ import logging
 import time
 
 from chaos_negotiator.agent.agent import ChaosNegotiatorAgent
-from chaos_negotiator.models import DeploymentContext, DeploymentChange
+from chaos_negotiator.models import DeploymentChange, DeploymentContext
+from chaos_negotiator.models.risk import RiskAssessment
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -19,7 +20,7 @@ app.add_middleware(
 )
 
 agent = ChaosNegotiatorAgent()
-logger.info("✅ ChaosNegotiatorAgent initialized on API startup")
+logger.info("ChaosNegotiatorAgent initialized on API startup")
 
 
 def _build_demo_context() -> DeploymentContext:
@@ -68,42 +69,49 @@ def get_latest_assessment() -> dict[str, object]:
     on by the system.
     """
     request_id = int(time.time() * 1000)
-    logger.info(f"\n{'='*60}")
-    logger.info(f"[{request_id}] 🔵 API REQUEST: /api/deployments/latest")
-    logger.info(f"[{request_id}] Building demo context...")
+    logger.info("\n%s", "=" * 60)
+    logger.info("[%s] API REQUEST: /api/deployments/latest", request_id)
+    logger.info("[%s] Building demo context...", request_id)
 
     ctx = _build_demo_context()
-    logger.info(f"[{request_id}] ✅ Demo context built: {ctx.deployment_id}")
+    logger.info("[%s] Demo context built: %s", request_id, ctx.deployment_id)
 
-    # full processing returns a deployment contract with risk & rollback info
-    logger.info(f"[{request_id}] 🔄 Calling agent.process_deployment()...")
     contract = agent.process_deployment(ctx)
-    logger.info(f"[{request_id}] ✅ Contract generated: {contract.contract_id}")
+    logger.info("[%s] Contract generated: %s", request_id, contract.contract_id)
+
+    risk_assessment = contract.risk_assessment
+    if not isinstance(risk_assessment, RiskAssessment):
+        raise RuntimeError("Deployment contract did not include a valid risk assessment")
+
     logger.info(
-        f"[{request_id}] ✅ Risk Assessment: score={contract.risk_assessment.risk_score:.1f}, confidence={contract.risk_assessment.confidence_percent:.1f}%"
+        "[%s] Risk Assessment: score=%.1f, confidence=%.1f%%",
+        request_id,
+        risk_assessment.risk_score,
+        risk_assessment.confidence_percent,
     )
 
-    # generate canary policy from the same context (uses contract internally)
-    logger.info(f"[{request_id}] 🔄 Calling agent.generate_canary_policy()...")
     policy = agent.generate_canary_policy(ctx)
-    logger.info(f"[{request_id}] ✅ Canary policy generated with {len(policy.stages)} stages")
+    logger.info("[%s] Canary policy generated with %s stages", request_id, len(policy.stages))
 
     first_stage = policy.stages[0] if policy.stages else None
 
-    ra = contract.risk_assessment
-    response = {
+    response: dict[str, object] = {
         "service": ctx.service_name,
-        # risk_score already ranges 0–100, so we expose it directly as percent
-        "risk_percent": ra.risk_score,
-        "confidence_percent": ra.confidence_percent,
-        "risk_level": ra.risk_level,
+        # risk_score already ranges 0-100, so we expose it directly as percent
+        "risk_percent": risk_assessment.risk_score,
+        "confidence_percent": risk_assessment.confidence_percent,
+        "risk_level": risk_assessment.risk_level,
         "canary_stage": first_stage.name if first_stage else "smoke",
         "traffic_percent": first_stage.traffic_percent if first_stage else 0,
     }
 
     logger.info(
-        f"[{request_id}] 📤 RESPONSE: risk={response['risk_percent']:.1f}%, confidence={response['confidence_percent']:.1f}%, stage={response['canary_stage']}"
+        "[%s] RESPONSE: risk=%.1f%%, confidence=%.1f%%, stage=%s",
+        request_id,
+        response["risk_percent"],
+        response["confidence_percent"],
+        response["canary_stage"],
     )
-    logger.info(f"[{request_id}] ✅ Request complete\n{'='*60}\n")
+    logger.info("[%s] Request complete\n%s\n", request_id, "=" * 60)
 
     return response

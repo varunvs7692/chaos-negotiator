@@ -6,7 +6,7 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, TypedDict, cast
 
 from fastapi import FastAPI, Header, HTTPException, Request, Response, WebSocket, WebSocketDisconnect  # type: ignore[import-not-found]
 from fastapi.responses import FileResponse  # type: ignore[import-not-found]
@@ -30,8 +30,22 @@ DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
 
+
+class RiskState(TypedDict):
+    risk_score: float
+    risk_level: str
+    confidence_percent: float
+    identified_factors: list[str]
+    predicted_error_rate_increase: float
+    predicted_latency_increase: float
+
+
+class GlobalState(TypedDict):
+    risk: RiskState
+    last_update: float | None
+
 # Global state for real-time updates
-GLOBAL_STATE = {
+GLOBAL_STATE: GlobalState = {
     "risk": {
         "risk_score": 0,
         "risk_level": "unknown",
@@ -469,7 +483,7 @@ async def update_risk_state() -> dict[str, Any]:
     global GLOBAL_STATE
 
     if not agent:
-        return GLOBAL_STATE["risk"]
+        return cast(dict[str, Any], GLOBAL_STATE["risk"])
 
     try:
         context = get_example_context("default")
@@ -485,13 +499,13 @@ async def update_risk_state() -> dict[str, Any]:
         }
         GLOBAL_STATE["last_update"] = asyncio.get_event_loop().time()
 
-        return GLOBAL_STATE["risk"]
+        return cast(dict[str, Any], GLOBAL_STATE["risk"])
     except Exception as e:
         logger.error(f"Error updating risk state: {e}")
-        return GLOBAL_STATE["risk"]
+        return cast(dict[str, Any], GLOBAL_STATE["risk"])
 
 
-async def risk_monitor_loop():
+async def risk_monitor_loop() -> None:
     """Background task that periodically updates the risk assessment."""
     logger.info("[RISK MONITOR] Starting background risk monitoring (5s interval)")
 
@@ -506,7 +520,7 @@ async def risk_monitor_loop():
 
 
 @app.websocket("/ws/risk")
-async def websocket_risk(websocket: WebSocket):
+async def websocket_risk(websocket: WebSocket) -> None:
     """WebSocket endpoint for streaming real-time risk updates."""
     await websocket.accept()
     logger.info("WebSocket client connected to /ws/risk")
@@ -514,7 +528,7 @@ async def websocket_risk(websocket: WebSocket):
     try:
         while True:
             # Get latest risk data from global state
-            risk_data = GLOBAL_STATE["risk"].copy()
+            risk_data: dict[str, Any] = dict(GLOBAL_STATE["risk"])
             risk_data["timestamp"] = asyncio.get_event_loop().time()
 
             # Send to client
