@@ -5,7 +5,7 @@ import os
 from typing import Any
 from datetime import datetime, timedelta
 from azure.identity import DefaultAzureCredential
-from azure.monitor.query import LogsQueryClient, LogsQueryStatus
+from azure.monitor.query import LogsQueryClient, LogsQueryStatus, LogsQueryResult
 import asyncio
 
 logger = logging.getLogger(__name__)
@@ -69,8 +69,8 @@ class AzureMCPClient:
                 timespan=timedelta(minutes=time_window_minutes),
             )
 
-            if response.status == LogsQueryStatus.SUCCESS and hasattr(response, "tables"):
-                table = response.tables[0]
+            if response.status == LogsQueryStatus.SUCCESS and isinstance(response, LogsQueryResult):
+                table = response.tables[0]  # type: ignore
                 if table.rows:
                     row = table.rows[0]
                     return {
@@ -137,8 +137,8 @@ class AzureMCPClient:
             )
 
             deployments = []
-            if response.status == LogsQueryStatus.SUCCESS and hasattr(response, "tables"):
-                for row in response.tables[0].rows:
+            if response.status == LogsQueryStatus.SUCCESS and isinstance(response, LogsQueryResult):
+                for row in response.tables[0].rows:  # type: ignore
                     deployments.append(
                         {
                             "timestamp": row[0],

@@ -70,7 +70,7 @@ def get_live_metrics(deployment_id: str) -> dict:
         )
 
         # Process error rate
-        error_count = 0
+        error_count = 0.0
         if error_rate_response.metrics:
             for metric in error_rate_response.metrics:
                 for timeseries in metric.timeseries:
@@ -78,7 +78,7 @@ def get_live_metrics(deployment_id: str) -> dict:
                         if data.count is not None:
                             error_count += data.count
 
-        request_count = 0
+        request_count = 0.0
         if requests_response.metrics:
             for metric in requests_response.metrics:
                 for timeseries in metric.timeseries:
@@ -89,7 +89,7 @@ def get_live_metrics(deployment_id: str) -> dict:
         actual_error_rate_percent = (error_count / request_count * 100) if request_count > 0 else 0
 
         # Process latency
-        actual_latency_change_percent = 0
+        actual_latency_change_percent = 0.0
         if latency_response.metrics:
             for metric in latency_response.metrics:
                 for timeseries in metric.timeseries:
