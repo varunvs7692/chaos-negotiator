@@ -360,28 +360,26 @@
           const [canaryData, setCanaryData] = React.useState(null);
           const [loading, setLoading] = React.useState(true);
           const [error, setError] = React.useState(null);
+          const [wsConnected, setWsConnected] = React.useState(false);
 
+          // Fetch non-risk data (history and canary) on mount
           React.useEffect(() => {
-            const fetchDashboardData = async () => {
+            const fetchNonRiskData = async () => {
               try {
-                setLoading(true);
-                const [riskRes, historyRes, canaryRes] = await Promise.all([
-                  fetch('/api/dashboard/risk'),
+                const [historyRes, canaryRes] = await Promise.all([
                   fetch('/api/dashboard/history'),
                   fetch('/api/dashboard/canary'),
                 ]);
 
-                if (!riskRes.ok || !historyRes.ok || !canaryRes.ok) {
+                if (!historyRes.ok || !canaryRes.ok) {
                   throw new Error('Failed to fetch dashboard data');
                 }
 
-                const [risk, history, canary] = await Promise.all([
-                  riskRes.json(),
+                const [history, canary] = await Promise.all([
                   historyRes.json(),
                   canaryRes.json(),
                 ]);
 
-                setRiskData(risk);
                 setHistoryData(history);
                 setCanaryData(canary);
                 setError(null);
@@ -393,10 +391,61 @@
               }
             };
 
-            fetchDashboardData();
-            const interval = setInterval(fetchDashboardData, 10000);
+            fetchNonRiskData();
+            const interval = setInterval(fetchNonRiskData, 30000); // Refresh every 30s
 
             return () => clearInterval(interval);
+          }, []);
+
+          // WebSocket connection for real-time risk updates
+          React.useEffect(() => {
+            let ws;
+            let reconnectTimeout;
+
+            const connectWebSocket = () => {
+              const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+              const wsUrl = `${protocol}//${window.location.host}/ws/risk`;
+              
+              ws = new WebSocket(wsUrl);
+
+              ws.onopen = () => {
+                console.log('WebSocket connected to /ws/risk');
+                setWsConnected(true);
+                setError(null);
+              };
+
+              ws.onmessage = (event) => {
+                try {
+                  const data = JSON.parse(event.data);
+                  setRiskData(data);
+                } catch (err) {
+                  console.error('Error parsing WebSocket message:', err);
+                }
+              };
+
+              ws.onerror = (err) => {
+                console.error('WebSocket error:', err);
+                setError('WebSocket connection error');
+              };
+
+              ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                setWsConnected(false);
+                // Attempt to reconnect after 3 seconds
+                reconnectTimeout = setTimeout(connectWebSocket, 3000);
+              };
+            };
+
+            connectWebSocket();
+
+            return () => {
+              if (ws) {
+                ws.close();
+              }
+              if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+              }
+            };
           }, []);
 
           if (loading && !riskData) {
@@ -412,6 +461,10 @@
               <header className="dashboard-header">
                 <h1>🚀 Chaos Negotiator Dashboard</h1>
                 <p>Intelligent Deployment Risk & Reliability Management</p>
+                <div className="connection-status">
+                  <span className={`status-indicator ${wsConnected ? 'connected' : 'disconnected'}`}></span>
+                  <span>{wsConnected ? 'Real-time connected' : 'Connecting...'}</span>
+                </div>
               </header>
 
               {error && (

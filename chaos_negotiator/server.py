@@ -1,5 +1,6 @@
 """FastAPI HTTP server for Chaos Negotiator agent."""
 
+import asyncio
 import hmac
 import logging
 import os
@@ -7,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response  # type: ignore[import-not-found]
+from fastapi import FastAPI, Header, HTTPException, Request, Response, WebSocket, WebSocketDisconnect  # type: ignore[import-not-found]
 from fastapi.responses import FileResponse  # type: ignore[import-not-found]
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -29,11 +30,27 @@ DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
 
+# Global state for real-time updates
+GLOBAL_STATE = {
+    "risk": {
+        "risk_score": 0,
+        "risk_level": "unknown",
+        "confidence_percent": 0,
+        "identified_factors": [],
+        "predicted_error_rate_increase": 0,
+        "predicted_latency_increase": 0,
+    },
+    "last_update": None,
+}
+
+# Background task reference
+risk_monitor_task: asyncio.Task | None = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown logic."""
-    global agent
+    global agent, risk_monitor_task
     logger.info("Starting Chaos Negotiator server...")
 
     # Initialize agent on startup
@@ -44,9 +61,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error(f"Failed to initialize agent: {e}")
         agent = None
 
+    # Start background risk monitoring task
+    logger.info("Starting background risk monitoring task...")
+    risk_monitor_task = asyncio.create_task(risk_monitor_loop())
+
     yield
 
     logger.info("Shutting down Chaos Negotiator server...")
+    
+    # Stop background risk monitoring task
+    if risk_monitor_task:
+        logger.info("Stopping background risk monitoring task...")
+        risk_monitor_task.cancel()
+        try:
+            await risk_monitor_task
+        except asyncio.CancelledError:
+            pass
+    
     # gracefully stop background scheduler if agent supports it
     if agent and hasattr(agent, "shutdown"):
         try:
@@ -414,6 +445,74 @@ async def get_canary_strategy() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error getting canary strategy: {e}")
         raise HTTPException(status_code=400, detail="Failed to get canary strategy")
+
+
+# ==================== REAL-TIME WEBSOCKET SUPPORT ====================
+
+async def update_risk_state() -> dict[str, Any]:
+    """Update the global risk state by calling the risk predictor."""
+    global GLOBAL_STATE
+    
+    if not agent:
+        return GLOBAL_STATE["risk"]
+    
+    try:
+        context = get_example_context("default")
+        assessment = agent.risk_predictor.predict(context)
+        
+        GLOBAL_STATE["risk"] = {
+            "risk_score": assessment.risk_score,
+            "risk_level": assessment.risk_level,
+            "confidence_percent": assessment.confidence_percent,
+            "identified_factors": [f.value for f in assessment.identified_factors],
+            "predicted_error_rate_increase": assessment.predicted_error_rate_increase_percent,
+            "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
+        }
+        GLOBAL_STATE["last_update"] = asyncio.get_event_loop().time()
+        
+        return GLOBAL_STATE["risk"]
+    except Exception as e:
+        logger.error(f"Error updating risk state: {e}")
+        return GLOBAL_STATE["risk"]
+
+
+async def risk_monitor_loop():
+    """Background task that periodically updates the risk assessment."""
+    logger.info("[RISK MONITOR] Starting background risk monitoring (5s interval)")
+    
+    while True:
+        try:
+            await update_risk_state()
+            logger.debug(f"[RISK MONITOR] Updated risk: score={GLOBAL_STATE['risk']['risk_score']}")
+        except Exception as e:
+            logger.error(f"[RISK MONITOR] Error in monitoring loop: {e}")
+        
+        await asyncio.sleep(5)  # Update every 5 seconds
+
+
+@app.websocket("/ws/risk")
+async def websocket_risk(websocket: WebSocket):
+    """WebSocket endpoint for streaming real-time risk updates."""
+    await websocket.accept()
+    logger.info("WebSocket client connected to /ws/risk")
+    
+    try:
+        while True:
+            # Get latest risk data from global state
+            risk_data = GLOBAL_STATE["risk"].copy()
+            risk_data["timestamp"] = asyncio.get_event_loop().time()
+            
+            # Send to client
+            await websocket.send_json(risk_data)
+            
+            # Wait before next update
+            await asyncio.sleep(5)
+            
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        await websocket.close()
 
 
 if __name__ == "__main__":

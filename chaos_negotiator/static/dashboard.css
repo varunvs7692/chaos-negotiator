@@ -29,6 +29,44 @@
   color: #a0a0a0;
 }
 
+/* Connection Status */
+.connection-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #a0a0a0;
+}
+
+.status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.connected {
+  background: #44dd44;
+  box-shadow: 0 0 8px rgba(68, 221, 68, 0.6);
+  animation: pulse-green 2s infinite;
+}
+
+.status-indicator.disconnected {
+  background: #ff4444;
+  box-shadow: 0 0 8px rgba(255, 68, 68, 0.6);
+}
+
+@keyframes pulse-green {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(68, 221, 68, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(68, 221, 68, 0.8);
+  }
+}
+
 .dashboard-grid {
   max-width: 1400px;
   margin: 0 auto;
