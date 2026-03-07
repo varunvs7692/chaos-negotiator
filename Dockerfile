@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Chaos Negotiator
 
-# Build stage
+# Build stage for backend
 FROM python:3.11-slim as builder
 
 WORKDIR /build
@@ -14,6 +14,18 @@ COPY LICENSE .
 # Build wheels
 RUN pip install --upgrade pip && \
     pip wheel --no-cache-dir --no-deps --wheel-dir /build/wheels -e .
+
+# Build stage for frontend
+FROM node:18-slim as frontend-builder
+
+WORKDIR /app
+
+COPY frontend/package.json .
+COPY frontend/src ./src
+COPY frontend/public ./public
+
+RUN npm install
+RUN npm run build
 
 # Runtime stage
 FROM python:3.11-slim
@@ -38,6 +50,9 @@ RUN pip install --upgrade pip && \
 COPY chaos_negotiator /app/chaos_negotiator
 COPY LICENSE /app/
 COPY README.md /app/
+
+# Copy built frontend
+COPY --from=frontend-builder /app/build /app/chaos_negotiator/static
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
