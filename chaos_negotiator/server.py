@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.main import get_example_context
-from chaos_negotiator.metrics.opentelemetry import configure_opentelemetry, get_live_metrics
+from chaos_negotiator.metrics.opentelemetry import configure_opentelemetry
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
 
 # Configure OpenTelemetry
@@ -80,6 +80,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.error(f"Failed to initialize agent: {e}")
         agent = None
 
+    if agent:
+        await update_risk_state()
+
     # Start background risk monitoring task
     logger.info("Starting background risk monitoring task...")
     risk_monitor_task = asyncio.create_task(risk_monitor_loop())
@@ -141,24 +144,46 @@ class DeploymentRequest(BaseModel):
     service_name: str
     environment: str
     version: str
-    changes: list[dict]
+    changes: list[DeploymentChange]
 
 
 class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str
-    agent_ready: bool
+    service: str
+    version: str
 
 
-class AnalysisResponse(BaseModel):
-    """Deployment analysis response."""
+class CanaryStageResponse(BaseModel):
+    """Serialized canary rollout stage."""
+
+    stage_number: int
+    traffic_percent: float
+    duration_seconds: int
+    name: str
+
+
+class CanaryStrategyResponse(BaseModel):
+    """Serialized canary rollout strategy."""
 
     deployment_id: str
-    risk_assessment: dict
-    rollback_plan: dict
-    deployment_contract: dict
-    outcome_recorded: bool = False
+    risk_score: float
+    confidence_percent: float
+    error_rate_threshold: float
+    latency_threshold_ms: float
+    rollback_on_violation: bool
+    stages: list[CanaryStageResponse]
+
+
+class EvaluationResponse(BaseModel):
+    """Judge-facing deployment evaluation response."""
+
+    deployment_id: str
+    risk_score: float
+    risk_level: str
+    confidence_percent: float
+    canary_strategy: CanaryStrategyResponse
 
 
 class DeploymentResultRequest(BaseModel):
@@ -187,7 +212,7 @@ async def api_info() -> dict[str, str]:
 @app.get("/health")
 async def health() -> HealthResponse:
     """Health check endpoint."""
-    return HealthResponse(status="healthy" if agent else "unhealthy", agent_ready=agent is not None)
+    return HealthResponse(status="ok", service="chaos-negotiator", version="1.0")
 
 
 @app.get("/static/{file_path:path}", response_model=None)
@@ -222,52 +247,69 @@ def _require_api_key_if_configured(x_api_key: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
+def _build_deployment_context(request: DeploymentRequest) -> DeploymentContext:
+    """Convert the API request model into the internal deployment context."""
+    return DeploymentContext(
+        deployment_id=request.deployment_id,
+        service_name=request.service_name,
+        environment=request.environment,
+        version=request.version,
+        changes=request.changes,
+    )
+
+
+def _build_canary_strategy(context: DeploymentContext) -> CanaryStrategyResponse:
+    """Generate a JSON-safe canary strategy for API responses."""
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    policy = agent.generate_canary_policy(context)
+    return CanaryStrategyResponse(
+        deployment_id=policy.deployment_id,
+        risk_score=policy.risk_score,
+        confidence_percent=policy.confidence_percent,
+        error_rate_threshold=policy.error_rate_threshold,
+        latency_threshold_ms=policy.latency_threshold_ms,
+        rollback_on_violation=policy.rollback_on_violation,
+        stages=[
+            CanaryStageResponse(
+                stage_number=stage.stage_number,
+                traffic_percent=stage.traffic_percent,
+                duration_seconds=stage.duration_seconds,
+                name=stage.name,
+            )
+            for stage in policy.stages
+        ],
+    )
+
+
 def _evaluate_deployment_request(
     request: DeploymentRequest, operation_label: str
-) -> AnalysisResponse:
-    """Evaluate deployment input and return the standard analysis response."""
+) -> EvaluationResponse:
+    """Evaluate deployment input and return the public demo response."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     try:
-        # Convert request to DeploymentContext
-        changes = [DeploymentChange(**change) for change in request.changes]
-        context = DeploymentContext(
-            deployment_id=request.deployment_id,
-            service_name=request.service_name,
-            environment=request.environment,
-            version=request.version,
-            changes=changes,
-        )
+        context = _build_deployment_context(request)
 
-        # Run analysis
         logger.info(f"[{operation_label}] Analyzing deployment {request.deployment_id}...")
         deployment_contract = agent.process_deployment(context)
-        risk_assessment = _model_to_dict(deployment_contract.risk_assessment)
-        rollback_plan = _model_to_dict(deployment_contract.rollback_plan)
+        risk_assessment = deployment_contract.risk_assessment
+        if risk_assessment is None:
+            raise HTTPException(status_code=500, detail="Risk assessment unavailable")
+        canary_strategy = _build_canary_strategy(context)
 
-        # Get live metrics
-        live_metrics = get_live_metrics(request.deployment_id)
-
-        # Record the outcome using agent method
-        logger.info(f"[{operation_label}] Recording deployment outcome for {request.deployment_id}")
-        outcome = agent.record_deployment_result(
-            context,
-            actual_error_rate_percent=live_metrics["actual_error_rate_percent"],
-            actual_latency_change_percent=live_metrics["actual_latency_change_percent"],
-            rollback_triggered=live_metrics["rollback_triggered"],
-        )
-        outcome_recorded = outcome is not None
-        logger.info(f"[{operation_label}] Outcome recorded: {outcome_recorded}")
-
-        return AnalysisResponse(
+        return EvaluationResponse(
             deployment_id=request.deployment_id,
-            risk_assessment=risk_assessment,
-            rollback_plan=rollback_plan,
-            deployment_contract=deployment_contract.model_dump(),
-            outcome_recorded=outcome_recorded,
+            risk_score=risk_assessment.risk_score,
+            risk_level=risk_assessment.risk_level,
+            confidence_percent=risk_assessment.confidence_percent,
+            canary_strategy=canary_strategy,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in {operation_label.lower()}: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail="Failed to evaluate deployment")
@@ -276,7 +318,7 @@ def _evaluate_deployment_request(
 @app.post("/api/deployments/evaluate")
 async def evaluate_deployment(
     request: DeploymentRequest, x_api_key: str | None = Header(default=None)
-) -> AnalysisResponse:
+) -> EvaluationResponse:
     """Evaluate a deployment, record outcome, and return contract."""
     _require_api_key_if_configured(x_api_key)
     return _evaluate_deployment_request(request, "EVALUATE")
@@ -285,7 +327,7 @@ async def evaluate_deployment(
 @app.post("/analyze")
 async def analyze_deployment(
     request: DeploymentRequest, x_api_key: str | None = Header(default=None)
-) -> AnalysisResponse:
+) -> EvaluationResponse:
     """Backward-compatible alias for /api/deployments/evaluate."""
     _require_api_key_if_configured(x_api_key)
     return _evaluate_deployment_request(request, "ANALYZE")
@@ -340,17 +382,13 @@ async def get_latest_risk() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     try:
-        context = get_example_context("default")
-        assessment = agent.risk_predictor.predict(context)
+        if GLOBAL_STATE["last_update"] is None:
+            await update_risk_state()
 
-        return {
-            "risk_score": assessment.risk_score,
-            "risk_level": assessment.risk_level,
-            "confidence_percent": assessment.confidence_percent,
-            "identified_factors": [f.value for f in assessment.identified_factors],
-            "predicted_error_rate_increase": assessment.predicted_error_rate_increase_percent,
-            "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
-        }
+        risk_data: dict[str, Any] = dict(GLOBAL_STATE["risk"])
+        if GLOBAL_STATE["last_update"] is not None:
+            risk_data["last_update"] = GLOBAL_STATE["last_update"]
+        return risk_data
     except Exception as e:
         logger.error(f"Error getting risk assessment: {e}")
         raise HTTPException(status_code=400, detail="Failed to get risk assessment")
@@ -447,24 +485,7 @@ async def get_canary_strategy() -> dict[str, Any]:
 
     try:
         context = get_example_context("default")
-        policy = agent.generate_canary_policy(context)
-
-        return {
-            "deployment_id": policy.deployment_id,
-            "risk_score": policy.risk_score,
-            "confidence_percent": policy.confidence_percent,
-            "error_rate_threshold": policy.error_rate_threshold,
-            "latency_threshold_ms": policy.latency_threshold_ms,
-            "stages": [
-                {
-                    "stage_number": s.stage_number,
-                    "traffic_percent": s.traffic_percent,
-                    "duration_seconds": s.duration_seconds,
-                    "name": s.name,
-                }
-                for s in policy.stages
-            ],
-        }
+        return _build_canary_strategy(context).model_dump()
     except Exception as e:
         logger.error(f"Error getting canary strategy: {e}")
         raise HTTPException(status_code=400, detail="Failed to get canary strategy")
@@ -492,7 +513,7 @@ async def update_risk_state() -> dict[str, Any]:
             "predicted_error_rate_increase": assessment.predicted_error_rate_increase_percent,
             "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
         }
-        GLOBAL_STATE["last_update"] = asyncio.get_event_loop().time()
+        GLOBAL_STATE["last_update"] = asyncio.get_running_loop().time()
 
         return cast(dict[str, Any], GLOBAL_STATE["risk"])
     except Exception as e:
@@ -524,7 +545,7 @@ async def websocket_risk(websocket: WebSocket) -> None:
         while True:
             # Get latest risk data from global state
             risk_data: dict[str, Any] = dict(GLOBAL_STATE["risk"])
-            risk_data["timestamp"] = asyncio.get_event_loop().time()
+            risk_data["timestamp"] = asyncio.get_running_loop().time()
 
             # Send to client
             await websocket.send_json(risk_data)

@@ -11,7 +11,7 @@ class DeploymentChange(BaseModel):
     change_type: str  # 'add', 'modify', 'delete'
     lines_changed: int
     risk_tags: list[str] = Field(default_factory=list)
-    description: str
+    description: str = ""
 
 
 class ServiceDependency(BaseModel):

@@ -362,6 +362,10 @@
           const [error, setError] = React.useState(null);
           const [wsConnected, setWsConnected] = React.useState(false);
 
+          const updateRiskCard = React.useCallback((data) => {
+            setRiskData(data);
+          }, []);
+
           // Fetch non-risk data (history and canary) on mount
           React.useEffect(() => {
             const fetchNonRiskData = async () => {
@@ -417,7 +421,7 @@
               ws.onmessage = (event) => {
                 try {
                   const data = JSON.parse(event.data);
-                  setRiskData(data);
+                  updateRiskCard(data);
                 } catch (err) {
                   console.error('Error parsing WebSocket message:', err);
                 }
@@ -446,7 +450,7 @@
                 clearTimeout(reconnectTimeout);
               }
             };
-          }, []);
+          }, [updateRiskCard]);
 
           if (loading && !riskData) {
             return (

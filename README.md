@@ -92,7 +92,7 @@ Start the API server to see the live agent in action on the interactive dashboar
 python -m chaos_negotiator.server
 
 # Option 2: uvicorn with hot reload (recommended during development)
-uvicorn chaos_negotiator.agent.api:app --reload
+uvicorn chaos_negotiator.server:app --reload
 ```
 
 Then open your browser to `http://localhost:8000` and explore:
@@ -101,8 +101,40 @@ Then open your browser to `http://localhost:8000` and explore:
 - **Guardrails Summary** — contract constraints (error rate, latency budgets)
 - **Deployment History** — recent outcomes with prediction accuracy
 
-The `/api/deployments/latest` endpoint calls the real `ChaosNegotiatorAgent` and returns dynamic values.
-The React frontend (running at `http://localhost:3000` via `npm start` in the `frontend/` directory) polls this API every 10 seconds to stay up-to-date.
+The dashboard receives live risk updates over the `/ws/risk` WebSocket endpoint and refreshes history/canary panels from the JSON dashboard APIs.
+
+### Usage
+
+Evaluate a deployment with the public hackathon API:
+
+```bash
+curl -X POST https://<app-url>/api/deployments/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "deployment_id": "demo123",
+    "service_name": "payment-service",
+    "environment": "production",
+    "version": "v1.0.0",
+    "changes": [
+      {
+        "file_path": "api/payment.py",
+        "change_type": "modify",
+        "lines_changed": 120,
+        "risk_tags": ["api"]
+      }
+    ]
+  }'
+```
+
+The service also exposes interactive API docs at `/docs` for judge verification and manual testing.
+
+### Verification
+
+```bash
+curl https://<app-url>/health
+curl https://<app-url>/api/dashboard/risk
+curl https://<app-url>/api/dashboard/history
+```
 
 ### 🧠 Learning from Deployments
 

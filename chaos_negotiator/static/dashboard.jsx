@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import './dashboard.css';
 import RiskCard from './components/RiskCard';
 import CanaryTimeline from './components/CanaryTimeline';
@@ -11,28 +11,25 @@ export default function Dashboard() {
   const [canaryData, setCanaryData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        setLoading(true);
-        const [riskRes, historyRes, canaryRes] = await Promise.all([
-          fetch('/api/dashboard/risk'),
+        const [historyRes, canaryRes] = await Promise.all([
           fetch('/api/dashboard/history'),
           fetch('/api/dashboard/canary'),
         ]);
 
-        if (!riskRes.ok || !historyRes.ok || !canaryRes.ok) {
+        if (!historyRes.ok || !canaryRes.ok) {
           throw new Error('Failed to fetch dashboard data');
         }
 
-        const [risk, history, canary] = await Promise.all([
-          riskRes.json(),
+        const [history, canary] = await Promise.all([
           historyRes.json(),
           canaryRes.json(),
         ]);
 
-        setRiskData(risk);
         setHistoryData(history);
         setCanaryData(canary);
         setError(null);
@@ -45,9 +42,52 @@ export default function Dashboard() {
     };
 
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 10000); // Refresh every 10s
+    const interval = setInterval(fetchDashboardData, 30000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    let ws;
+    let reconnectTimeout;
+
+    const connectWebSocket = () => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws/risk`);
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        setError(null);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          setRiskData(JSON.parse(event.data));
+        } catch (err) {
+          console.error('Error parsing WebSocket message:', err);
+        }
+      };
+
+      ws.onerror = () => {
+        setError('WebSocket connection error');
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        reconnectTimeout = setTimeout(connectWebSocket, 3000);
+      };
+    };
+
+    connectWebSocket();
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
   }, []);
 
   if (loading && !riskData) {
@@ -63,6 +103,10 @@ export default function Dashboard() {
       <header className="dashboard-header">
         <h1>🚀 Chaos Negotiator Dashboard</h1>
         <p>Intelligent Deployment Risk & Reliability Management</p>
+        <div className="connection-status">
+          <span className={`status-indicator ${wsConnected ? 'connected' : 'disconnected'}`}></span>
+          <span>{wsConnected ? 'Real-time connected' : 'Connecting...'}</span>
+        </div>
       </header>
 
       {error && (
