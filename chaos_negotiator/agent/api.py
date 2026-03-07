@@ -9,6 +9,7 @@ from chaos_negotiator.agent.agent import ChaosNegotiatorAgent
 from chaos_negotiator.models import DeploymentChange, DeploymentContext
 from chaos_negotiator.models.risk import RiskAssessment
 
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: list[WebSocket] = []
@@ -156,7 +157,9 @@ async def broadcast_dashboard_data():
     while True:
         try:
             if manager.active_connections:
-                logger.info("Broadcasting dashboard data to %d clients", len(manager.active_connections))
+                logger.info(
+                    "Broadcasting dashboard data to %d clients", len(manager.active_connections)
+                )
                 data = get_latest_assessment()
                 await manager.broadcast(json.dumps(data))
             else:
