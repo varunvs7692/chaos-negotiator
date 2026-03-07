@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse  # type: ignore[import-not-found]
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from chaos_negotiator.approval_store import DeploymentApprovalStore
 from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.main import get_example_context
 from chaos_negotiator.metrics.opentelemetry import configure_opentelemetry
@@ -33,6 +34,7 @@ DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
+approval_store = DeploymentApprovalStore()
 
 
 class RiskState(TypedDict):
@@ -195,6 +197,33 @@ class DeploymentResultRequest(BaseModel):
     rollback_triggered: bool
 
 
+class ApprovalDecisionRequest(BaseModel):
+    """Request payload for approving or rejecting a deployment."""
+
+    reason: str = ""
+
+
+class PendingDeploymentResponse(BaseModel):
+    """Serialized deployment awaiting an approval decision."""
+
+    deployment_id: str
+    service_name: str
+    environment: str
+    version: str
+    risk_score: float
+    risk_level: str
+    confidence_percent: float
+    approval_status: str
+    decision_reason: str
+    canary_strategy: CanaryStrategyResponse
+    created_at: str
+    updated_at: str
+
+
+class ApprovalDecisionResponse(PendingDeploymentResponse):
+    """Serialized decision result for a deployment."""
+
+
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
     """Serve dashboard homepage; fallback to JSON if static file is missing."""
@@ -283,6 +312,24 @@ def _build_canary_strategy(context: DeploymentContext) -> CanaryStrategyResponse
     )
 
 
+def _approval_record_to_response(record: dict[str, Any]) -> ApprovalDecisionResponse:
+    """Convert approval store records to API response models."""
+    return ApprovalDecisionResponse(
+        deployment_id=record["deployment_id"],
+        service_name=record["service_name"],
+        environment=record["environment"],
+        version=record["version"],
+        risk_score=record["risk_score"],
+        risk_level=record["risk_level"],
+        confidence_percent=record["confidence_percent"],
+        approval_status=record["approval_status"],
+        decision_reason=record["decision_reason"],
+        canary_strategy=CanaryStrategyResponse.model_validate(record["canary_strategy"]),
+        created_at=record["created_at"],
+        updated_at=record["updated_at"],
+    )
+
+
 def _evaluate_deployment_request(
     request: DeploymentRequest, operation_label: str
 ) -> EvaluationResponse:
@@ -321,7 +368,23 @@ async def evaluate_deployment(
 ) -> EvaluationResponse:
     """Evaluate a deployment, record outcome, and return contract."""
     _require_api_key_if_configured(x_api_key)
-    return _evaluate_deployment_request(request, "EVALUATE")
+    response = _evaluate_deployment_request(request, "EVALUATE")
+    context = _build_deployment_context(request)
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+    contract = agent.process_deployment(context)
+    approval_store.save_evaluation(
+        deployment_id=request.deployment_id,
+        service_name=request.service_name,
+        environment=request.environment,
+        version=request.version,
+        risk_score=response.risk_score,
+        risk_level=response.risk_level,
+        confidence_percent=response.confidence_percent,
+        contract=contract.model_dump(mode="json"),
+        canary_strategy=response.canary_strategy.model_dump(),
+    )
+    return response
 
 
 @app.post("/analyze")
@@ -331,6 +394,50 @@ async def analyze_deployment(
     """Backward-compatible alias for /api/deployments/evaluate."""
     _require_api_key_if_configured(x_api_key)
     return _evaluate_deployment_request(request, "ANALYZE")
+
+
+@app.get("/api/deployments/pending")
+async def list_pending_deployments(limit: int = 50) -> dict[str, list[PendingDeploymentResponse]]:
+    """List deployments waiting for approval."""
+    records = approval_store.list_pending(limit=limit)
+    return {"deployments": [_approval_record_to_response(record) for record in records]}
+
+
+@app.get("/api/deployments/{deployment_id}")
+async def get_deployment_status(deployment_id: str) -> ApprovalDecisionResponse:
+    """Return the persisted approval record for a deployment."""
+    record = approval_store.get(deployment_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    return _approval_record_to_response(record)
+
+
+@app.post("/api/deployments/{deployment_id}/approve")
+async def approve_deployment(
+    deployment_id: str,
+    decision: ApprovalDecisionRequest,
+    x_api_key: str | None = Header(default=None),
+) -> ApprovalDecisionResponse:
+    """Approve a deployment after review."""
+    _require_api_key_if_configured(x_api_key)
+    record = approval_store.update_status(deployment_id, "approved", decision.reason)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    return _approval_record_to_response(record)
+
+
+@app.post("/api/deployments/{deployment_id}/reject")
+async def reject_deployment(
+    deployment_id: str,
+    decision: ApprovalDecisionRequest,
+    x_api_key: str | None = Header(default=None),
+) -> ApprovalDecisionResponse:
+    """Reject a deployment after review."""
+    _require_api_key_if_configured(x_api_key)
+    record = approval_store.update_status(deployment_id, "rejected", decision.reason)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Deployment not found")
+    return _approval_record_to_response(record)
 
 
 @app.get("/demo/{scenario}")

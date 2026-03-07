@@ -128,12 +128,29 @@ curl -X POST https://<app-url>/api/deployments/evaluate \
 
 The service also exposes interactive API docs at `/docs` for judge verification and manual testing.
 
+### Approval Workflow
+
+Industrial deployment reviews need an explicit decision step after scoring. Evaluated deployments are now persisted and can be reviewed through approval APIs:
+
+```bash
+curl https://<app-url>/api/deployments/pending
+
+curl -X POST https://<app-url>/api/deployments/demo123/approve \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"SLO guardrails reviewed and approved"}'
+
+curl -X POST https://<app-url>/api/deployments/demo123/reject \
+  -H "Content-Type: application/json" \
+  -d '{"reason":"Database migration risk too high without feature flag"}'
+```
+
 ### Verification
 
 ```bash
 curl https://<app-url>/health
 curl https://<app-url>/api/dashboard/risk
 curl https://<app-url>/api/dashboard/history
+curl https://<app-url>/api/deployments/pending
 ```
 
 ### 🧠 Learning from Deployments

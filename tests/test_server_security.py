@@ -105,6 +105,57 @@ def test_analyze_alias_matches_evaluate_shape() -> None:
     }
 
 
+def test_evaluate_persists_pending_approval_and_can_be_decided() -> None:
+    """Evaluations should create a pending approval record that can be approved or rejected."""
+    payload = {
+        "deployment_id": "approval-test-001",
+        "service_name": "payment-service",
+        "environment": "production",
+        "version": "v1.2.3",
+        "changes": [
+            {
+                "file_path": "api/payment.py",
+                "change_type": "modify",
+                "lines_changed": 120,
+                "risk_tags": ["api", "database"],
+            }
+        ],
+    }
+
+    with TestClient(server.app) as client:
+        evaluate_response = client.post("/api/deployments/evaluate", json=payload)
+        pending_response = client.get("/api/deployments/pending")
+        get_response = client.get(f"/api/deployments/{payload['deployment_id']}")
+        approve_response = client.post(
+            f"/api/deployments/{payload['deployment_id']}/approve",
+            json={"reason": "Reviewed by release manager"},
+        )
+        reject_response = client.post(
+            f"/api/deployments/{payload['deployment_id']}/reject",
+            json={"reason": "Rollback proof missing"},
+        )
+
+    assert evaluate_response.status_code == 200
+
+    assert pending_response.status_code == 200
+    pending_data = pending_response.json()["deployments"]
+    assert any(item["deployment_id"] == payload["deployment_id"] for item in pending_data)
+
+    assert get_response.status_code == 200
+    get_data = get_response.json()
+    assert get_data["approval_status"] == "pending"
+
+    assert approve_response.status_code == 200
+    approve_data = approve_response.json()
+    assert approve_data["approval_status"] == "approved"
+    assert approve_data["decision_reason"] == "Reviewed by release manager"
+
+    assert reject_response.status_code == 200
+    reject_data = reject_response.json()
+    assert reject_data["approval_status"] == "rejected"
+    assert reject_data["decision_reason"] == "Rollback proof missing"
+
+
 def test_dashboard_endpoints_and_docs_return_json() -> None:
     """Dashboard endpoints and docs should be available for judges."""
     with TestClient(server.app) as client:
