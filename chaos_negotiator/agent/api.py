@@ -1,11 +1,32 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 import time
+import asyncio
+import json
 
 from chaos_negotiator.agent.agent import ChaosNegotiatorAgent
 from chaos_negotiator.models import DeploymentChange, DeploymentContext
 from chaos_negotiator.models.risk import RiskAssessment
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_text(message)
+
+
+manager = ConnectionManager()
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -115,3 +136,37 @@ def get_latest_assessment() -> dict[str, object]:
     logger.info("[%s] Request complete\n%s\n", request_id, "=" * 60)
 
     return response
+
+
+@app.websocket("/ws/dashboard")
+async def ws_dashboard_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # We are just broadcasting, so we don't expect any data from the client
+            # This will keep the connection open
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        logger.info("Client disconnected from dashboard websocket")
+
+
+async def broadcast_dashboard_data():
+    """Periodically fetches dashboard data and broadcasts it to all connected WebSocket clients."""
+    while True:
+        try:
+            if manager.active_connections:
+                logger.info("Broadcasting dashboard data to %d clients", len(manager.active_connections))
+                data = get_latest_assessment()
+                await manager.broadcast(json.dumps(data))
+            else:
+                logger.info("No active websocket clients to broadcast to.")
+        except Exception as e:
+            logger.error("Error broadcasting dashboard data: %s", e)
+        await asyncio.sleep(10)
+
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting background task to broadcast dashboard data.")
+    asyncio.create_task(broadcast_dashboard_data())

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { fetchLatestDeployment } from "../services/api";
 import RiskCard from "../components/RiskCard";
 import CanaryProgress from "../components/CanaryProgress";
 
@@ -7,36 +6,47 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Fetch immediately on mount
-    const fetchData = async () => {
+    console.log("[Dashboard] Setting up WebSocket connection...");
+    const ws = new WebSocket("ws://localhost:8000/ws/dashboard");
+
+    ws.onopen = () => {
+      console.log("[Dashboard] WebSocket connection established.");
+      setIsConnected(true);
+      setError(null);
+    };
+
+    ws.onmessage = (event) => {
       try {
-        console.log("[Dashboard] 🔵 Fetching latest deployment...");
-        const response = await fetchLatestDeployment();
-        console.log("[Dashboard] ✅ Data received:", response);
-        setData(response);
+        // The data from the server is a string that needs to be parsed.
+        // It's also double-encoded because of how it's being sent from the backend.
+        const parsedData = JSON.parse(event.data.replace(/'/g, '"'));
+        console.log("[Dashboard] ✅ Data received via WebSocket:", parsedData);
+        setData(parsedData);
         setLastUpdate(new Date().toLocaleTimeString());
         setError(null);
       } catch (err) {
-        console.error("[Dashboard] ❌ API Error:", err.message);
-        setError(err.message);
+        console.error("[Dashboard] ❌ Error parsing WebSocket message:", err.message);
+        setError("Error processing incoming data.");
       }
     };
 
-    // Initial fetch
-    fetchData();
+    ws.onerror = (err) => {
+      console.error("[Dashboard] ❌ WebSocket Error:", err);
+      setError("WebSocket connection error. Is the server running?");
+      setIsConnected(false);
+    };
 
-    // Set up polling every 10 seconds
-    console.log("[Dashboard] ⏰ Setting up 10s polling interval");
-    const id = setInterval(() => {
-      console.log(`[Dashboard] 🔄 Poll tick at ${new Date().toLocaleTimeString()}`);
-      fetchData();
-    }, 10000);
+    ws.onclose = () => {
+      console.log("[Dashboard] WebSocket connection closed.");
+      setIsConnected(false);
+    };
 
     return () => {
-      clearInterval(id);
-      console.log("[Dashboard] 🛑 Cleaned up polling interval on unmount");
+      console.log("[Dashboard] 🛑 Closing WebSocket connection on unmount");
+      ws.close();
     };
   }, []);
 
@@ -48,21 +58,21 @@ export default function Dashboard() {
       <div style={{ 
         padding: "1rem", 
         marginBottom: "1rem",
-        backgroundColor: error ? "#fee" : "#efe",
+        backgroundColor: error ? "#fee" : isConnected ? "#efe" : "#ffe",
         borderRadius: "4px",
-        border: `1px solid ${error ? "#c00" : "#0c0"}`
+        border: `1px solid ${error ? "#c00" : isConnected ? "#0c0" : "#cc0"}`
       }}>
         {error ? (
           <>
             <strong>❌ API Error:</strong> {error}
           </>
-        ) : lastUpdate ? (
+        ) : isConnected ? (
           <>
             <strong>✅ Connected</strong> | Last update: {lastUpdate}
           </>
         ) : (
           <>
-            <strong>🔄 Loading...</strong>
+            <strong>🔄 Connecting...</strong>
           </>
         )}
       </div>

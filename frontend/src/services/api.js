@@ -26,7 +26,3 @@ api.interceptors.response.use(
   }
 );
 
-export const fetchLatestDeployment = async () => {
-  const res = await api.get("/api/deployments/latest");
-  return res.data;
-};
