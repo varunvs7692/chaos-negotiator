@@ -11,17 +11,17 @@ from chaos_negotiator.models.risk import RiskAssessment
 
 
 class ConnectionManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self.active_connections.append(websocket)
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> None:
         self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: str):
+    async def broadcast(self, message: str) -> None:
         for connection in self.active_connections:
             await connection.send_text(message)
 
@@ -140,7 +140,7 @@ def get_latest_assessment() -> dict[str, object]:
 
 
 @app.websocket("/ws/dashboard")
-async def ws_dashboard_endpoint(websocket: WebSocket):
+async def ws_dashboard_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)
     try:
         while True:
@@ -152,7 +152,7 @@ async def ws_dashboard_endpoint(websocket: WebSocket):
         logger.info("Client disconnected from dashboard websocket")
 
 
-async def broadcast_dashboard_data():
+async def broadcast_dashboard_data() -> None:
     """Periodically fetches dashboard data and broadcasts it to all connected WebSocket clients."""
     while True:
         try:
@@ -170,6 +170,6 @@ async def broadcast_dashboard_data():
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     logger.info("Starting background task to broadcast dashboard data.")
     asyncio.create_task(broadcast_dashboard_data())
