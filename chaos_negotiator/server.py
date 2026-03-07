@@ -295,11 +295,14 @@ def _require_github_signature_if_configured(body: bytes, signature: str | None) 
     if not signature:
         raise HTTPException(status_code=401, detail="Missing GitHub signature")
 
-    expected = "sha256=" + hmac.new(
-        webhook_secret.encode("utf-8"),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
+    expected = (
+        "sha256="
+        + hmac.new(
+            webhook_secret.encode("utf-8"),
+            body,
+            hashlib.sha256,
+        ).hexdigest()
+    )
     if not hmac.compare_digest(expected, signature):
         raise HTTPException(status_code=401, detail="Invalid GitHub signature")
 
@@ -424,10 +427,7 @@ def _build_request_from_github_webhook(event: str, payload: dict[str, Any]) -> D
         or "production"
     )
     version = (
-        payload.get("after")
-        or workflow_run.get("head_sha")
-        or deployment.get("sha")
-        or "unknown"
+        payload.get("after") or workflow_run.get("head_sha") or deployment.get("sha") or "unknown"
     )
     deployment_id = str(
         deployment.get("id")
@@ -435,7 +435,9 @@ def _build_request_from_github_webhook(event: str, payload: dict[str, Any]) -> D
         or payload.get("delivery")
         or f"{event}-{version[:12]}"
     )
-    file_count = len(payload.get("commits", [])) or len(payload.get("head_commit", {}).get("modified", []))
+    file_count = len(payload.get("commits", [])) or len(
+        payload.get("head_commit", {}).get("modified", [])
+    )
     lines_changed = max(file_count * 25, 1)
     risk_tags = ["ci-cd", "github"]
     if environment == "production":

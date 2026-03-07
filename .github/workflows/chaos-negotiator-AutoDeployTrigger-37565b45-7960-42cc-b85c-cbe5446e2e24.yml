@@ -31,19 +31,38 @@ jobs:
           tenant-id: ${{ secrets.CHAOSNEGOTIATOR_AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.CHAOSNEGOTIATOR_AZURE_SUBSCRIPTION_ID }}
 
+      - name: Wait for Container App to be ready
+        run: |
+          timeout=600
+          end=$((SECONDS+timeout))
+          
+          while [ $SECONDS -lt $end ]; do
+            state=$(az containerapp show --name chaos-negotiator --resource-group chaos-negotiator-rg --query properties.provisioningState -o tsv)
+            if [[ "$state" == "Succeeded" ]]; then
+              echo "Container App is ready."
+              break
+            elif [[ "$state" == "Failed" ]]; then
+                echo "Container App is in a failed state."
+                exit 1
+            fi
+            echo "Container App is not ready yet, current state: $state. Waiting..."
+            sleep 30
+          done
+
+          if [[ "$state" != "Succeeded" ]]; then
+            echo "Timed out waiting for Container App to be ready."
+            exit 1
+          fi
+
       - name: Build and push container image to registry
         uses: azure/container-apps-deploy-action@v2
         with:
           appSourcePath: ${{ github.workspace }}
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
           registryUrl: chaosnegroreg13921.azurecr.io
           registryUsername: ${{ secrets.CHAOSNEGOTIATOR_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.CHAOSNEGOTIATOR_REGISTRY_PASSWORD }}
           containerAppName: chaos-negotiator
           resourceGroup: chaos-negotiator-rg
           imageToBuild: chaosnegroreg13921.azurecr.io/chaos-negotiator:${{ github.sha }}
-          _buildArgumentsKey_: |
-            _buildArgumentsValues_
 
 
