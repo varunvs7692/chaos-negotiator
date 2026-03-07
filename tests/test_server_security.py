@@ -156,6 +156,45 @@ def test_evaluate_persists_pending_approval_and_can_be_decided() -> None:
     assert reject_data["decision_reason"] == "Rollback proof missing"
 
 
+def test_github_webhook_ingests_workflow_run_into_evaluation() -> None:
+    """GitHub workflow events should be translated into deployment evaluations."""
+    payload = {
+        "action": "completed",
+        "workflow_run": {
+            "id": 987654,
+            "name": "deploy.yml",
+            "head_sha": "abc123def4567890",
+            "conclusion": "success",
+        },
+        "repository": {
+            "name": "chaos-negotiator",
+        },
+    }
+
+    with TestClient(server.app) as client:
+        response = client.post(
+            "/api/webhooks/github",
+            headers={"X-GitHub-Event": "workflow_run"},
+            json=payload,
+        )
+        pending_response = client.get("/api/deployments/pending")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["event"] == "workflow_run"
+    assert data["status"] == "ingested"
+    assert set(data["evaluation"].keys()) == {
+        "deployment_id",
+        "risk_score",
+        "risk_level",
+        "confidence_percent",
+        "canary_strategy",
+    }
+
+    pending_ids = {item["deployment_id"] for item in pending_response.json()["deployments"]}
+    assert data["deployment_id"] in pending_ids
+
+
 def test_dashboard_endpoints_and_docs_return_json() -> None:
     """Dashboard endpoints and docs should be available for judges."""
     with TestClient(server.app) as client:

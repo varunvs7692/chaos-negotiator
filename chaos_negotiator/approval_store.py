@@ -20,8 +20,7 @@ class DeploymentApprovalStore:
             self._ensure_table()
 
     def _ensure_table(self) -> None:
-        self.conn.execute(
-            """
+        self.conn.execute("""
             CREATE TABLE IF NOT EXISTS deployment_approvals (
                 deployment_id TEXT PRIMARY KEY,
                 service_name TEXT NOT NULL,
@@ -37,8 +36,7 @@ class DeploymentApprovalStore:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
-            """
-        )
+            """)
         self.conn.commit()
 
     def save_evaluation(
@@ -121,7 +119,10 @@ class DeploymentApprovalStore:
             return None
         return self._row_to_dict(row)
 
-    def update_status(self, deployment_id: str, approval_status: str, decision_reason: str) -> dict[str, Any] | None:
+    def update_status(
+        self, deployment_id: str, approval_status: str, decision_reason: str
+    ) -> dict[str, Any] | None:
+        """Update the approval status for a deployment."""
         existing = self.get(deployment_id)
         if existing is None:
             return None

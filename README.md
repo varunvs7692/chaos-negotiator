@@ -144,6 +144,29 @@ curl -X POST https://<app-url>/api/deployments/demo123/reject \
   -d '{"reason":"Database migration risk too high without feature flag"}'
 ```
 
+### GitHub Webhook Ingestion
+
+The service can ingest GitHub deployment-style events and convert them into the same evaluation and approval workflow used by the public API:
+
+```bash
+curl -X POST https://<app-url>/api/webhooks/github \
+  -H "Content-Type: application/json" \
+  -H "X-GitHub-Event: workflow_run" \
+  -d '{
+    "action": "completed",
+    "workflow_run": {
+      "id": 987654,
+      "name": "deploy.yml",
+      "head_sha": "abc123def4567890"
+    },
+    "repository": {
+      "name": "chaos-negotiator"
+    }
+  }'
+```
+
+If `GITHUB_WEBHOOK_SECRET` is configured, the endpoint also validates `X-Hub-Signature-256`.
+
 ### Verification
 
 ```bash
@@ -151,6 +174,7 @@ curl https://<app-url>/health
 curl https://<app-url>/api/dashboard/risk
 curl https://<app-url>/api/dashboard/history
 curl https://<app-url>/api/deployments/pending
+curl -X POST https://<app-url>/api/webhooks/github -H "X-GitHub-Event: workflow_run" -H "Content-Type: application/json" -d '{"action":"completed","workflow_run":{"id":1,"name":"deploy.yml","head_sha":"abc123"},"repository":{"name":"chaos-negotiator"}}'
 ```
 
 ### 🧠 Learning from Deployments

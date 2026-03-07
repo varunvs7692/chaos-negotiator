@@ -1,6 +1,7 @@
 """FastAPI HTTP server for Chaos Negotiator agent."""
 
 import asyncio
+import hashlib
 import hmac
 import logging
 import os
@@ -224,6 +225,16 @@ class ApprovalDecisionResponse(PendingDeploymentResponse):
     """Serialized decision result for a deployment."""
 
 
+class WebhookIngestResponse(BaseModel):
+    """Response for GitHub webhook ingestion."""
+
+    event: str
+    action: str
+    deployment_id: str
+    status: str
+    evaluation: EvaluationResponse
+
+
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
     """Serve dashboard homepage; fallback to JSON if static file is missing."""
@@ -274,6 +285,23 @@ def _require_api_key_if_configured(x_api_key: str | None) -> None:
         return
     if not x_api_key or not hmac.compare_digest(x_api_key, configured_key):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+def _require_github_signature_if_configured(body: bytes, signature: str | None) -> None:
+    """Require a valid GitHub webhook signature when GITHUB_WEBHOOK_SECRET is configured."""
+    webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET", "").strip()
+    if not webhook_secret:
+        return
+    if not signature:
+        raise HTTPException(status_code=401, detail="Missing GitHub signature")
+
+    expected = "sha256=" + hmac.new(
+        webhook_secret.encode("utf-8"),
+        body,
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, signature):
+        raise HTTPException(status_code=401, detail="Invalid GitHub signature")
 
 
 def _build_deployment_context(request: DeploymentRequest) -> DeploymentContext:
@@ -330,10 +358,10 @@ def _approval_record_to_response(record: dict[str, Any]) -> ApprovalDecisionResp
     )
 
 
-def _evaluate_deployment_request(
+def _evaluate_deployment_contract(
     request: DeploymentRequest, operation_label: str
-) -> EvaluationResponse:
-    """Evaluate deployment input and return the public demo response."""
+) -> tuple[EvaluationResponse, dict[str, Any]]:
+    """Evaluate deployment input and return the public response plus contract payload."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
@@ -347,13 +375,14 @@ def _evaluate_deployment_request(
             raise HTTPException(status_code=500, detail="Risk assessment unavailable")
         canary_strategy = _build_canary_strategy(context)
 
-        return EvaluationResponse(
+        response = EvaluationResponse(
             deployment_id=request.deployment_id,
             risk_score=risk_assessment.risk_score,
             risk_level=risk_assessment.risk_level,
             confidence_percent=risk_assessment.confidence_percent,
             canary_strategy=canary_strategy,
         )
+        return response, deployment_contract.model_dump(mode="json")
 
     except HTTPException:
         raise
@@ -362,17 +391,12 @@ def _evaluate_deployment_request(
         raise HTTPException(status_code=400, detail="Failed to evaluate deployment")
 
 
-@app.post("/api/deployments/evaluate")
-async def evaluate_deployment(
-    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
-) -> EvaluationResponse:
-    """Evaluate a deployment, record outcome, and return contract."""
-    _require_api_key_if_configured(x_api_key)
-    response = _evaluate_deployment_request(request, "EVALUATE")
-    context = _build_deployment_context(request)
-    if not agent:
-        raise HTTPException(status_code=503, detail="Agent not initialized")
-    contract = agent.process_deployment(context)
+def _save_evaluation_record(
+    request: DeploymentRequest,
+    response: EvaluationResponse,
+    contract: dict[str, Any],
+) -> None:
+    """Persist an evaluated deployment for review workflows."""
     approval_store.save_evaluation(
         deployment_id=request.deployment_id,
         service_name=request.service_name,
@@ -381,9 +405,70 @@ async def evaluate_deployment(
         risk_score=response.risk_score,
         risk_level=response.risk_level,
         confidence_percent=response.confidence_percent,
-        contract=contract.model_dump(mode="json"),
+        contract=contract,
         canary_strategy=response.canary_strategy.model_dump(),
     )
+
+
+def _build_request_from_github_webhook(event: str, payload: dict[str, Any]) -> DeploymentRequest:
+    """Translate GitHub deployment/workflow payloads into an internal deployment request."""
+    repo = payload.get("repository") or {}
+    repo_name = repo.get("name", "unknown-service")
+    workflow_run = payload.get("workflow_run") or {}
+    deployment = payload.get("deployment") or {}
+    workflow_name = workflow_run.get("name") or payload.get("workflow") or "github-workflow"
+    environment = (
+        deployment.get("environment")
+        or workflow_run.get("environment")
+        or payload.get("environment")
+        or "production"
+    )
+    version = (
+        payload.get("after")
+        or workflow_run.get("head_sha")
+        or deployment.get("sha")
+        or "unknown"
+    )
+    deployment_id = str(
+        deployment.get("id")
+        or workflow_run.get("id")
+        or payload.get("delivery")
+        or f"{event}-{version[:12]}"
+    )
+    file_count = len(payload.get("commits", [])) or len(payload.get("head_commit", {}).get("modified", []))
+    lines_changed = max(file_count * 25, 1)
+    risk_tags = ["ci-cd", "github"]
+    if environment == "production":
+        risk_tags.append("production")
+    if event == "deployment_status":
+        risk_tags.append("deployment")
+    if event == "workflow_run":
+        risk_tags.append("workflow")
+
+    change = DeploymentChange(
+        file_path=f".github/workflows/{workflow_name}",
+        change_type="modify",
+        lines_changed=lines_changed,
+        risk_tags=risk_tags,
+        description=f"GitHub {event} event for {workflow_name}",
+    )
+    return DeploymentRequest(
+        deployment_id=deployment_id,
+        service_name=repo_name,
+        environment=environment,
+        version=version[:40],
+        changes=[change],
+    )
+
+
+@app.post("/api/deployments/evaluate")
+async def evaluate_deployment(
+    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+) -> EvaluationResponse:
+    """Evaluate a deployment, record outcome, and return contract."""
+    _require_api_key_if_configured(x_api_key)
+    response, contract = _evaluate_deployment_contract(request, "EVALUATE")
+    _save_evaluation_record(request, response, contract)
     return response
 
 
@@ -393,7 +478,38 @@ async def analyze_deployment(
 ) -> EvaluationResponse:
     """Backward-compatible alias for /api/deployments/evaluate."""
     _require_api_key_if_configured(x_api_key)
-    return _evaluate_deployment_request(request, "ANALYZE")
+    response, _ = _evaluate_deployment_contract(request, "ANALYZE")
+    return response
+
+
+@app.post("/api/webhooks/github")
+async def ingest_github_webhook(
+    request: Request,
+    x_github_event: str = Header(alias="X-GitHub-Event"),
+    x_hub_signature_256: str | None = Header(default=None, alias="X-Hub-Signature-256"),
+) -> WebhookIngestResponse:
+    """Ingest GitHub deployment/workflow events and turn them into deployment evaluations."""
+    body = await request.body()
+    _require_github_signature_if_configured(body, x_hub_signature_256)
+
+    if x_github_event not in {"workflow_run", "deployment", "deployment_status"}:
+        raise HTTPException(status_code=400, detail="Unsupported GitHub event")
+
+    payload = await request.json()
+    deployment_request = _build_request_from_github_webhook(x_github_event, payload)
+    evaluation, contract = _evaluate_deployment_contract(
+        deployment_request,
+        f"GITHUB_{x_github_event.upper()}",
+    )
+    _save_evaluation_record(deployment_request, evaluation, contract)
+
+    return WebhookIngestResponse(
+        event=x_github_event,
+        action=str(payload.get("action", "received")),
+        deployment_id=deployment_request.deployment_id,
+        status="ingested",
+        evaluation=evaluation,
+    )
 
 
 @app.get("/api/deployments/pending")
