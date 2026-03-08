@@ -1,7 +1,7 @@
 # Multi-stage Dockerfile for Chaos Negotiator
 
 # Build stage
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
@@ -34,7 +34,7 @@ COPY --from=builder /build/wheels /wheels
 RUN pip install --upgrade pip && \
     pip install --no-cache /wheels/*
 
-# Copy application code
+# Copy application code, including bundled static assets
 COPY chaos_negotiator /app/chaos_negotiator
 COPY LICENSE /app/
 COPY README.md /app/

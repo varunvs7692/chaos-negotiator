@@ -16,13 +16,18 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      REGISTRY: chaosnegroreg13921.azurecr.io
+      IMAGE_NAME: chaos-negotiator
+      AZURE_APP_NAME: chaos-negotiator
+      AZURE_RESOURCE_GROUP: chaos-negotiator-rg
     permissions: 
       id-token: write #This is required for requesting the OIDC JWT Token
       contents: read #Required when GH token is used to authenticate with private repo
 
     steps:
       - name: Checkout to the branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Azure Login
         uses: azure/login@v2
@@ -54,15 +59,51 @@ jobs:
             exit 1
           fi
 
-      - name: Build and push container image to registry
-        uses: azure/container-apps-deploy-action@v2
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v1
         with:
-          appSourcePath: ${{ github.workspace }}
-          registryUrl: chaosnegroreg13921.azurecr.io
+          login-server: ${{ env.REGISTRY }}
           registryUsername: ${{ secrets.CHAOSNEGOTIATOR_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.CHAOSNEGOTIATOR_REGISTRY_PASSWORD }}
-          containerAppName: chaos-negotiator
-          resourceGroup: chaos-negotiator-rg
-          imageToBuild: chaosnegroreg13921.azurecr.io/chaos-negotiator:${{ github.sha }}
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+
+      - name: Push Docker image
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Wait for Container App to become idle again
+        run: |
+          for i in {1..30}; do
+            state=$(az containerapp show --name ${{ env.AZURE_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query properties.provisioningState -o tsv)
+            if [[ "$state" == "Succeeded" || "$state" == "Failed" || "$state" == "Canceled" ]]; then
+              echo "Container App is idle with provisioning state '$state'."
+              exit 0
+            fi
+            echo "Container App provisioning state is '$state' (attempt $i/30). Waiting 10s..."
+            sleep 10
+          done
+
+          echo "Container App is still busy after 5 minutes."
+          exit 1
+
+      - name: Update Container App image
+        run: |
+          for i in {1..5}; do
+            if az containerapp update \
+              --name ${{ env.AZURE_APP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}; then
+              echo "Container App update succeeded on attempt $i."
+              exit 0
+            fi
+            echo "Container App update failed on attempt $i. Retrying in 30s..."
+            sleep 30
+          done
+
+          echo "Container App update failed after 5 attempts."
+          exit 1
 
 
