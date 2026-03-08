@@ -198,11 +198,14 @@ def test_github_webhook_ingests_workflow_run_into_evaluation() -> None:
 def test_dashboard_endpoints_and_docs_return_json() -> None:
     """Dashboard endpoints and docs should be available for judges."""
     with TestClient(server.app) as client:
+        root_response = client.get("/")
         risk_response = client.get("/api/dashboard/risk")
         history_response = client.get("/api/dashboard/history")
         canary_response = client.get("/api/dashboard/canary")
         docs_response = client.get("/docs")
 
+    assert root_response.status_code == 200
+    assert "text/html" in root_response.headers["content-type"]
     assert risk_response.status_code == 200
     risk_data = risk_response.json()
     assert {"risk_score", "risk_level", "confidence_percent"} <= set(risk_data.keys())

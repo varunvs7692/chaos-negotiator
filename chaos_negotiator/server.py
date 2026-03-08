@@ -31,6 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+FRONTEND_INDEX_PATH = STATIC_DIR / "index.html"
 DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 
 # Global agent instance
@@ -237,7 +238,9 @@ class WebhookIngestResponse(BaseModel):
 
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
-    """Serve dashboard homepage; fallback to JSON if static file is missing."""
+    """Serve the built frontend homepage; fallback to legacy dashboard or JSON."""
+    if FRONTEND_INDEX_PATH.exists():
+        return FileResponse(str(FRONTEND_INDEX_PATH))
     if DASHBOARD_PATH.exists():
         return FileResponse(str(DASHBOARD_PATH))
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}

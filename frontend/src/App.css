@@ -1,38 +1,124 @@
 .container {
+  max-width: 1100px;
+  margin: 0 auto;
   padding: 24px;
-  font-family: system-ui;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #e5e7eb;
+}
+
+body {
+  margin: 0;
+  background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+}
+
+h1,
+h2 {
+  margin-top: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
 }
 
 .card {
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 16px;
+  border: 1px solid #334155;
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 16px;
+  padding: 20px;
   margin-bottom: 20px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.25);
 }
 
 .metric {
   display: flex;
   justify-content: space-between;
-  margin: 8px 0;
+  gap: 12px;
+  margin: 12px 0;
 }
 
-.badge.medium { color: orange; }
-.badge.high { color: red; }
-.badge.low { color: green; }
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.status.ok {
+  background: rgba(20, 83, 45, 0.3);
+  border: 1px solid #22c55e;
+}
+
+.status.pending {
+  background: rgba(133, 77, 14, 0.3);
+  border: 1px solid #f59e0b;
+}
+
+.status.error {
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid #ef4444;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.badge.medium {
+  color: #fbbf24;
+}
+
+.badge.high {
+  color: #f87171;
+}
+
+.badge.low {
+  color: #4ade80;
+}
+
+.badge.unknown {
+  color: #cbd5e1;
+}
 
 .stage-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
 
 .stage {
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #eee;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #1f2937;
+  border: 1px solid #334155;
 }
 
 .stage.active {
-  background: #007bff;
+  background: #2563eb;
+  border-color: #60a5fa;
   color: white;
+}
+
+.factors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.factor {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  font-size: 0.9rem;
 }

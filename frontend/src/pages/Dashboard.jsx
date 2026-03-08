@@ -1,100 +1,140 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import RiskCard from "../components/RiskCard";
 import CanaryProgress from "../components/CanaryProgress";
+import api from "../services/api";
+
+const initialRisk = {
+  risk_score: 0,
+  risk_level: "unknown",
+  confidence_percent: 0,
+  identified_factors: [],
+  predicted_error_rate_increase: 0,
+  predicted_latency_increase: 0,
+};
 
 export default function Dashboard() {
-  const [data, setData] = useState(null);
+  const [risk, setRisk] = useState(initialRisk);
+  const [canary, setCanary] = useState(null);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    console.log("[Dashboard] Setting up WebSocket connection...");
-    const ws = new WebSocket("ws://localhost:8000/ws/dashboard");
+    let isMounted = true;
+
+    async function loadCanary() {
+      try {
+        const response = await api.get("/api/dashboard/canary");
+        if (isMounted) {
+          setCanary(response.data);
+        }
+      } catch (loadError) {
+        if (isMounted) {
+          setError("Failed to load canary strategy.");
+        }
+      }
+    }
+
+    loadCanary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/risk`);
 
     ws.onopen = () => {
-      console.log("[Dashboard] WebSocket connection established.");
       setIsConnected(true);
       setError(null);
     };
 
     ws.onmessage = (event) => {
       try {
-        // The data from the server is a string that needs to be parsed.
-        // It's also double-encoded because of how it's being sent from the backend.
-        const parsedData = JSON.parse(event.data.replace(/'/g, '"'));
-        console.log("[Dashboard] ✅ Data received via WebSocket:", parsedData);
-        setData(parsedData);
+        const payload = JSON.parse(event.data);
+        setRisk(payload);
         setLastUpdate(new Date().toLocaleTimeString());
         setError(null);
-      } catch (err) {
-        console.error("[Dashboard] ❌ Error parsing WebSocket message:", err.message);
+      } catch (parseError) {
         setError("Error processing incoming data.");
       }
     };
 
-    ws.onerror = (err) => {
-      console.error("[Dashboard] ❌ WebSocket Error:", err);
-      setError("WebSocket connection error. Is the server running?");
+    ws.onerror = () => {
+      setError("WebSocket connection error.");
       setIsConnected(false);
     };
 
     ws.onclose = () => {
-      console.log("[Dashboard] WebSocket connection closed.");
       setIsConnected(false);
     };
 
     return () => {
-      console.log("[Dashboard] 🛑 Closing WebSocket connection on unmount");
       ws.close();
     };
   }, []);
 
+  const currentStage = useMemo(() => {
+    if (!canary?.stages?.length) {
+      return "pending";
+    }
+    return canary.stages[0].name;
+  }, [canary]);
+
+  const currentTraffic = useMemo(() => {
+    if (!canary?.stages?.length) {
+      return 0;
+    }
+    return canary.stages[0].traffic_percent;
+  }, [canary]);
+
   return (
     <div className="container">
       <h1>Chaos Negotiator Dashboard</h1>
-      
-      {/* Status bar */}
-      <div style={{ 
-        padding: "1rem", 
-        marginBottom: "1rem",
-        backgroundColor: error ? "#fee" : isConnected ? "#efe" : "#ffe",
-        borderRadius: "4px",
-        border: `1px solid ${error ? "#c00" : isConnected ? "#0c0" : "#cc0"}`
-      }}>
+      <div className={`status ${error ? "error" : isConnected ? "ok" : "pending"}`}>
         {error ? (
           <>
-            <strong>❌ API Error:</strong> {error}
+            <strong>Error:</strong> {error}
           </>
         ) : isConnected ? (
           <>
-            <strong>✅ Connected</strong> | Last update: {lastUpdate}
+            <strong>Connected</strong> <span>Last update: {lastUpdate || "just now"}</span>
           </>
         ) : (
-          <>
-            <strong>🔄 Connecting...</strong>
-          </>
+          <strong>Connecting...</strong>
         )}
       </div>
 
-      {!data ? (
-        <div style={{ padding: "2rem", textAlign: "center" }}>
-          <p>Waiting for data...</p>
-        </div>
-      ) : (
-        <>
-          <RiskCard
-            risk={data.risk_percent}
-            confidence={data.confidence_percent}
-            level={data.risk_level}
-          />
+      <div className="grid">
+        <RiskCard
+          risk={risk.risk_score}
+          confidence={risk.confidence_percent}
+          level={risk.risk_level}
+        />
 
-          <CanaryProgress
-            currentStage={data.canary_stage}
-            traffic={data.traffic_percent}
-          />
-        </>
-      )}
+        <CanaryProgress currentStage={currentStage} traffic={currentTraffic} />
+      </div>
+
+      <div className="card">
+        <h2>Live Signals</h2>
+        <div className="metric">
+          <span>Predicted Error Rate Increase</span>
+          <strong>{risk.predicted_error_rate_increase}%</strong>
+        </div>
+        <div className="metric">
+          <span>Predicted Latency Increase</span>
+          <strong>{risk.predicted_latency_increase}%</strong>
+        </div>
+        <div className="factors">
+          {(risk.identified_factors || []).map((factor) => (
+            <span key={factor} className="factor">
+              {factor}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
