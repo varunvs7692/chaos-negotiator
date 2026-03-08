@@ -5,24 +5,23 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Add request logging
 api.interceptors.request.use((config) => {
-  console.log(`[API] 🔵 REQUEST: ${config.method.toUpperCase()} ${config.url}`);
+  console.log(`[API] REQUEST: ${(config.method || "GET").toUpperCase()} ${config.url}`);
   return config;
 });
 
-// Add response logging
 api.interceptors.response.use(
   (response) => {
-    console.log(`[API] ✅ RESPONSE (${response.status}): `, response.data);
+    console.log(`[API] RESPONSE (${response.status}):`, response.data);
     return response;
   },
   (error) => {
     console.error(
-      `[API] ❌ ERROR (${error.response?.status || "Unknown"}):`,
+      `[API] ERROR (${error.response?.status || "Unknown"}):`,
       error.response?.data || error.message
     );
     return Promise.reject(error);
   }
 );
 
+export default api;
