@@ -3,29 +3,38 @@ import React from "react";
 const stages = ["smoke", "light", "half", "majority", "full"];
 
 export default function CanaryProgress({ currentStage, traffic }) {
+  const activeIndex = Math.max(stages.indexOf(currentStage), 0);
+
   return (
-    <div className="card">
-      <h2>Canary Rollout</h2>
+    <section className="card">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Release Safety</p>
+          <h2>Canary Rollout</h2>
+        </div>
+        <div className="traffic-pill">{traffic}% traffic</div>
+      </div>
 
-      <p>
-        Current Stage: <strong>{currentStage}</strong>
-      </p>
-      <p>
-        Traffic: <strong>{traffic}%</strong>
-      </p>
+      <div className="progress-track" aria-hidden="true">
+        <div
+          className="progress-fill"
+          style={{ width: `${((activeIndex + 1) / stages.length) * 100}%` }}
+        />
+      </div>
 
-      <div className="stage-bar">
-        {stages.map((stage) => (
-          <span
+      <div className="stage-list">
+        {stages.map((stage, index) => (
+          <div
             key={stage}
-            className={
-              stage === currentStage ? "stage active" : "stage"
-            }
+            className={`stage-node ${index <= activeIndex ? "done" : ""} ${
+              stage === currentStage ? "active" : ""
+            }`}
           >
-            {stage}
-          </span>
+            <span className="stage-dot" />
+            <span className="stage-label">{stage}</span>
+          </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

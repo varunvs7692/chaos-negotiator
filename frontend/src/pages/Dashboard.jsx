@@ -92,7 +92,21 @@ export default function Dashboard() {
 
   return (
     <div className="container">
-      <h1>Chaos Negotiator Dashboard</h1>
+      <section className="hero">
+        <div>
+          <p className="eyebrow">AI Deployment Control Center</p>
+          <h1>Chaos Negotiator Dashboard</h1>
+          <p className="hero-copy">
+            Track live deployment risk, rollout posture, and reliability signals in one view.
+          </p>
+        </div>
+        <div className="hero-panel">
+          <span className="hero-kicker">Streaming</span>
+          <strong>{isConnected ? "Live feed active" : "Waiting for feed"}</strong>
+          <small>{lastUpdate ? `Updated ${lastUpdate}` : "No live update yet"}</small>
+        </div>
+      </section>
+
       <div className={`status ${error ? "error" : isConnected ? "ok" : "pending"}`}>
         {error ? (
           <>
@@ -117,24 +131,46 @@ export default function Dashboard() {
         <CanaryProgress currentStage={currentStage} traffic={currentTraffic} />
       </div>
 
-      <div className="card">
-        <h2>Live Signals</h2>
-        <div className="metric">
-          <span>Predicted Error Rate Increase</span>
-          <strong>{risk.predicted_error_rate_increase}%</strong>
+      <section className="signals-grid">
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Reliability Signals</p>
+              <h2>Live Impact</h2>
+            </div>
+          </div>
+          <div className="metric-grid">
+            <div className="metric-tile">
+              <span>Predicted Error Increase</span>
+              <strong>{risk.predicted_error_rate_increase}%</strong>
+            </div>
+            <div className="metric-tile">
+              <span>Predicted Latency Increase</span>
+              <strong>{risk.predicted_latency_increase}%</strong>
+            </div>
+          </div>
         </div>
-        <div className="metric">
-          <span>Predicted Latency Increase</span>
-          <strong>{risk.predicted_latency_increase}%</strong>
+
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Risk Drivers</p>
+              <h2>Identified Factors</h2>
+            </div>
+          </div>
+          <div className="factors">
+            {(risk.identified_factors || []).length ? (
+              risk.identified_factors.map((factor) => (
+                <span key={factor} className="factor">
+                  {factor}
+                </span>
+              ))
+            ) : (
+              <span className="factor muted">No risk factors detected yet</span>
+            )}
+          </div>
         </div>
-        <div className="factors">
-          {(risk.identified_factors || []).map((factor) => (
-            <span key={factor} className="factor">
-              {factor}
-            </span>
-          ))}
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
