@@ -1,5 +1,11 @@
 # Chaos Negotiator
 
+**Before final submission, use [FINAL_SUBMISSION_CHECKLIST.md](FINAL_SUBMISSION_CHECKLIST.md) and `python scripts/verify_deployment.py <base-url>`.**
+
+**For hackathon judging, use [JUDGE_GUIDE.md](JUDGE_GUIDE.md) and [SUBMISSION_ARCHITECTURE.md](SUBMISSION_ARCHITECTURE.md).**
+
+**For submission copy, use [SUBMISSION_TEXT.md](SUBMISSION_TEXT.md).**
+
 **New here? Start with [USER_GUIDE.md](USER_GUIDE.md) for setup, dashboard usage, API calls, and Azure live telemetry requirements.**
 > *AI Agent for Deployment Contracts* — Treat every deploy like a contract between developers and reliability goals.
 
