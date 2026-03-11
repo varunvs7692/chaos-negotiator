@@ -66,17 +66,34 @@ class AzureMCPClient:
             end_time = datetime.utcnow()
             start_time = end_time - timedelta(minutes=time_window_minutes)
 
-            # Query the standard Application Insights requests table.
+            # Support both workspace-based Application Insights (`AppRequests`)
+            # and classic-style `requests` schemas.
             query = f"""
-            requests
+            union isfuzzy=true
+                (
+                    AppRequests
+                    | project
+                        timestamp = TimeGenerated,
+                        success_value = tobool(Success),
+                        duration_ms = todouble(DurationMs),
+                        role_name = tostring(AppRoleName),
+                        role_instance = tostring(AppRoleInstance)
+                ),
+                (
+                    requests
+                    | project
+                        timestamp = timestamp,
+                        success_value = tobool(success),
+                        duration_ms = todouble(duration),
+                        role_name = tostring(column_ifexists("cloud_RoleName", "")),
+                        role_instance = tostring(column_ifexists("cloud_RoleInstance", ""))
+                )
             | where timestamp between (datetime({start_time.isoformat()}) .. datetime({end_time.isoformat()}))
-            | extend role_name = tostring(column_ifexists("cloud_RoleName", ""))
-            | extend role_instance = tostring(column_ifexists("cloud_RoleInstance", ""))
             | where role_name == "{service_name}" or role_instance contains "{service_name}"
             | summarize
-                error_rate = avg(toint(success == false)) * 100,
-                p95_latency = percentile(duration, 95),
-                p99_latency = percentile(duration, 99),
+                error_rate = avg(toint(success_value == false)) * 100,
+                p95_latency = percentile(duration_ms, 95),
+                p99_latency = percentile(duration_ms, 99),
                 qps = count() / {time_window_minutes * 60}
             """
 
