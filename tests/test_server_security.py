@@ -1,5 +1,6 @@
 """Security-focused tests for HTTP server behavior."""
 
+from pathlib import Path
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -239,3 +240,21 @@ def test_risk_websocket_streams_json_payload() -> None:
             message = websocket.receive_json()
 
     assert {"risk_score", "risk_level", "confidence_percent", "timestamp"} <= set(message.keys())
+
+
+def test_static_route_serves_nested_frontend_assets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Built frontend assets under static/static should be served correctly."""
+    asset_dir = tmp_path / "static" / "js"
+    asset_dir.mkdir(parents=True)
+    asset_path = asset_dir / "main.js"
+    asset_path.write_text("console.log('ok');", encoding="utf-8")
+
+    monkeypatch.setattr(server, "STATIC_DIR", tmp_path)
+
+    with TestClient(server.app) as client:
+        response = client.get("/static/js/main.js")
+
+    assert response.status_code == 200
+    assert "console.log('ok');" in response.text

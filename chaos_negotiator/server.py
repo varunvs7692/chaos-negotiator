@@ -270,9 +270,13 @@ async def health() -> HealthResponse:
 async def serve_static(file_path: str) -> FileResponse | dict[str, str]:
     """Serve static files (CSS, JS, images)."""
     try:
-        full_path = STATIC_DIR / file_path
-        if full_path.exists() and full_path.is_file():
-            return FileResponse(str(full_path))
+        candidate_paths = [
+            STATIC_DIR / file_path,
+            STATIC_DIR / "static" / file_path,
+        ]
+        for full_path in candidate_paths:
+            if full_path.exists() and full_path.is_file():
+                return FileResponse(str(full_path))
     except Exception as e:
         logger.error(f"Error serving static file {file_path}: {e}")
     raise HTTPException(status_code=404, detail="Static file not found")
