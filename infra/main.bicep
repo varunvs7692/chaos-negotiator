@@ -25,6 +25,12 @@ param azureOpenAiEndpoint string
 @description('Azure OpenAI API version for SDK compatibility')
 param openAiApiVersion string = '2024-02-15-preview'
 
+@description('Built-in role definition ID for Log Analytics Data Reader')
+var logAnalyticsDataReaderRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  '3b03c2da-16b3-4a49-8834-0f8130efdd3b'
+)
+
 // Container Registry
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-11-01-preview' = {
   name: replace(containerRegistryName, '-', '')
@@ -209,6 +215,16 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
         ]
       }
     }
+  }
+}
+
+resource logAnalyticsReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(logAnalyticsWorkspace.id, containerApp.id, 'log-analytics-data-reader')
+  scope: logAnalyticsWorkspace
+  properties: {
+    principalId: containerApp.identity.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: logAnalyticsDataReaderRoleDefinitionId
   }
 }
 
