@@ -70,7 +70,9 @@ class AzureMCPClient:
             query = f"""
             requests
             | where timestamp between (datetime({start_time.isoformat()}) .. datetime({end_time.isoformat()}))
-            | where cloud_RoleName == "{service_name}" or cloud_RoleInstance contains "{service_name}"
+            | extend role_name = tostring(column_ifexists("cloud_RoleName", ""))
+            | extend role_instance = tostring(column_ifexists("cloud_RoleInstance", ""))
+            | where role_name == "{service_name}" or role_instance contains "{service_name}"
             | summarize
                 error_rate = avg(toint(success == false)) * 100,
                 p95_latency = percentile(duration, 95),
