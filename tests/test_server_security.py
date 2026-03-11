@@ -199,6 +199,9 @@ def test_dashboard_endpoints_and_docs_return_json() -> None:
     """Dashboard endpoints and docs should be available for judges."""
     with TestClient(server.app) as client:
         root_response = client.get("/")
+        dashboard_response = client.get("/dashboard")
+        dashboard_html_response = client.get("/dashboard.html")
+        legacy_dashboard_response = client.get("/static/dashboard.html")
         risk_response = client.get("/api/dashboard/risk")
         history_response = client.get("/api/dashboard/history")
         canary_response = client.get("/api/dashboard/canary")
@@ -206,6 +209,12 @@ def test_dashboard_endpoints_and_docs_return_json() -> None:
 
     assert root_response.status_code == 200
     assert "text/html" in root_response.headers["content-type"]
+    assert dashboard_response.status_code == 200
+    assert dashboard_response.text == root_response.text
+    assert dashboard_html_response.status_code == 200
+    assert dashboard_html_response.text == root_response.text
+    assert legacy_dashboard_response.status_code == 200
+    assert legacy_dashboard_response.text == root_response.text
     assert risk_response.status_code == 200
     risk_data = risk_response.json()
     assert {"risk_score", "risk_level", "confidence_percent"} <= set(risk_data.keys())

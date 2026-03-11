@@ -246,6 +246,14 @@ async def root() -> FileResponse | dict[str, str]:
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 
+@app.get("/dashboard", response_model=None)
+@app.get("/dashboard.html", response_model=None)
+@app.get("/static/dashboard.html", response_model=None)
+async def dashboard_entrypoint() -> FileResponse | dict[str, str]:
+    """Serve the resilient dashboard entrypoint for current and legacy URLs."""
+    return await root()
+
+
 @app.get("/api")
 async def api_info() -> dict[str, str]:
     """API info endpoint for programmatic clients."""
