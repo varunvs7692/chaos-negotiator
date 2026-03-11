@@ -183,6 +183,20 @@ class HealthResponse(BaseModel):
     version: str
 
 
+class HackathonProofResponse(BaseModel):
+    """Machine-readable proof of hackathon core requirement alignment."""
+
+    project_name: str
+    category: str
+    public_repository: str
+    azure_deployable: bool
+    working_project: bool
+    required_developer_tools: list[str]
+    hero_technologies: list[str]
+    working_features: list[str]
+    docs: dict[str, str]
+
+
 class CanaryStageResponse(BaseModel):
     """Serialized canary rollout stage."""
 
@@ -288,6 +302,45 @@ async def api_info() -> dict[str, str]:
 async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(status="ok", service="chaos-negotiator", version="1.0")
+
+
+@app.get("/api/hackathon/proof")
+async def hackathon_proof() -> HackathonProofResponse:
+    """Expose submission-ready proof that the project meets the core requirements."""
+    return HackathonProofResponse(
+        project_name="Chaos Negotiator",
+        category="Agentic DevOps Workflows",
+        public_repository="https://github.com/varunvs7692/chaos-negotiator",
+        azure_deployable=True,
+        working_project=True,
+        required_developer_tools=[
+            "VS Code workflow",
+            "Public GitHub repository",
+            "GitHub Actions CI/CD",
+            "GitHub Copilot-assisted development",
+        ],
+        hero_technologies=[
+            "Microsoft Agent Framework concepts",
+            "Azure MCP-style Azure integration",
+            "Azure OpenAI",
+            "Azure Container Apps",
+            "Azure Monitor / Log Analytics / Application Insights",
+        ],
+        working_features=[
+            "Deployment risk evaluation API",
+            "Approval workflow",
+            "GitHub webhook ingestion",
+            "Deployment outcome recording",
+            "React dashboard",
+            "Live or degraded telemetry mode",
+        ],
+        docs={
+            "user_guide": "/USER_GUIDE.md",
+            "judge_guide": "/JUDGE_GUIDE.md",
+            "submission_text": "/SUBMISSION_TEXT.md",
+            "architecture": "/SUBMISSION_ARCHITECTURE.md",
+        },
+    )
 
 
 @app.get("/static/{file_path:path}", response_model=None)

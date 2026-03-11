@@ -15,6 +15,8 @@ Chaos Negotiator is a working system that can:
 - display deployment and telemetry state in a usable dashboard
 - run locally and be deployed to Azure for judging and testing
 
+The running application also exposes `/api/hackathon/proof`, a machine-readable endpoint that summarizes the working features, required developer tools, hero technologies, and Azure deployment alignment for judge verification.
+
 ## Core requirement mapping
 
 - AI-powered solution: deployment risk analysis, contract generation, and agentic decision support

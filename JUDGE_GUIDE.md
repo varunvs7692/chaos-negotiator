@@ -60,6 +60,7 @@ Open:
 
 ```bash
 curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/api/hackathon/proof
 curl http://127.0.0.1:8000/api/dashboard/risk
 curl http://127.0.0.1:8000/api/dashboard/history
 curl http://127.0.0.1:8000/api/dashboard/canary

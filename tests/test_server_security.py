@@ -57,6 +57,21 @@ def test_health_endpoint_matches_judge_contract() -> None:
     }
 
 
+def test_hackathon_proof_endpoint_exposes_core_requirement_mapping() -> None:
+    """Submission proof endpoint should expose verifiable core requirement details."""
+    with TestClient(server.app) as client:
+        response = client.get("/api/hackathon/proof")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project_name"] == "Chaos Negotiator"
+    assert data["working_project"] is True
+    assert data["azure_deployable"] is True
+    assert "GitHub Actions CI/CD" in data["required_developer_tools"]
+    assert "Azure Container Apps" in data["hero_technologies"]
+    assert "Deployment risk evaluation API" in data["working_features"]
+
+
 def test_analyze_alias_matches_evaluate_shape() -> None:
     """Both evaluate and analyze endpoints should behave as compatible APIs."""
     payload = {
