@@ -25,6 +25,9 @@ param azureOpenAiEndpoint string
 @description('Azure OpenAI API version for SDK compatibility')
 param openAiApiVersion string = '2024-02-15-preview'
 
+@description('Create Log Analytics RBAC assignment for the Container App managed identity')
+param enableLogAnalyticsRoleAssignment bool = false
+
 @description('Built-in role definition ID for Log Analytics Data Reader')
 var logAnalyticsDataReaderRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
@@ -218,7 +221,7 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
   }
 }
 
-resource logAnalyticsReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource logAnalyticsReaderAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableLogAnalyticsRoleAssignment) {
   name: guid(logAnalyticsWorkspace.id, containerApp.id, 'log-analytics-data-reader')
   scope: logAnalyticsWorkspace
   properties: {
