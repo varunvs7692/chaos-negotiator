@@ -168,6 +168,18 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
               secretRef: 'app-insights-key'
             }
             {
+              name: 'AZURE_MONITOR_WORKSPACE_ID'
+              value: logAnalyticsWorkspace.properties.customerId
+            }
+            {
+              name: 'CN_DASHBOARD_SERVICE_NAME'
+              value: appName
+            }
+            {
+              name: 'CONTAINER_APP_NAME'
+              value: appName
+            }
+            {
               name: 'ENVIRONMENT'
               value: environment
             }

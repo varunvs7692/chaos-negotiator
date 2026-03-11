@@ -1,22 +1,25 @@
-"""Chaos Negotiator Azure MCP Integration."""
+"""Chaos Negotiator Azure telemetry integration."""
 
+import asyncio
 import logging
 import os
-from typing import Any
 from datetime import datetime, timedelta
+from typing import Any
+
 from azure.identity import DefaultAzureCredential
-from azure.monitor.query import LogsQueryClient, LogsQueryStatus, LogsQueryResult
-import asyncio
+from azure.monitor.query import LogsQueryClient, LogsQueryResult, LogsQueryStatus
 
 logger = logging.getLogger(__name__)
 
 
 class AzureMCPClient:
     """
-    Client for Azure Monitor and Deployment APIs via MCP.
+    Client for Azure Monitor and deployment telemetry.
 
-    Provides real-time metric queries and deployment monitoring
-    for enforcement of deployment contracts.
+    The dashboard uses this client to query live request health from
+    Log Analytics / Application Insights. When telemetry configuration is
+    missing or no data is available, the client returns an explicit degraded
+    payload instead of synthetic demo values.
     """
 
     def __init__(self) -> None:
@@ -24,12 +27,20 @@ class AzureMCPClient:
         self.credential = DefaultAzureCredential()
         self.logs_client = LogsQueryClient(self.credential)
         self.workspace_id = os.getenv("AZURE_MONITOR_WORKSPACE_ID")
+        self.default_service_name = (
+            os.getenv("CN_DASHBOARD_SERVICE_NAME")
+            or os.getenv("CONTAINER_APP_NAME")
+            or "chaos-negotiator"
+        )
+        self.default_deployment_history_service = (
+            os.getenv("CN_DEPLOYMENT_HISTORY_SERVICE_NAME") or self.default_service_name
+        )
 
         if not self.workspace_id:
-            logger.warning("AZURE_MONITOR_WORKSPACE_ID not set. Using mock data.")
+            logger.warning("AZURE_MONITOR_WORKSPACE_ID not set. Live telemetry is disabled.")
 
     async def get_current_metrics(
-        self, resource_id: str, metric_names: list[str], time_window_minutes: int = 5
+        self, resource_id: str | None, metric_names: list[str], time_window_minutes: int = 5
     ) -> dict[str, Any]:
         """
         Get current metrics for a service from Azure Monitor.
@@ -42,21 +53,25 @@ class AzureMCPClient:
         Returns:
             Dictionary with current metric values
         """
+        service_name = resource_id or self.default_service_name
         if not self.workspace_id:
-            # Return mock data for demo
-            return self._get_mock_metrics()
+            return self._build_unavailable_metrics(
+                service_name=service_name,
+                source="unconfigured",
+                message="AZURE_MONITOR_WORKSPACE_ID is not configured.",
+            )
 
         try:
             # Query Azure Monitor for real metrics
             end_time = datetime.utcnow()
             start_time = end_time - timedelta(minutes=time_window_minutes)
 
-            # Kusto query for error rate and latency
+            # Query the standard Application Insights requests table.
             query = f"""
             requests
             | where timestamp between (datetime({start_time.isoformat()}) .. datetime({end_time.isoformat()}))
-            | where cloud_RoleName == "{resource_id}"
-            | summarize 
+            | where cloud_RoleName == "{service_name}" or cloud_RoleInstance contains "{service_name}"
+            | summarize
                 error_rate = avg(toint(success == false)) * 100,
                 p95_latency = percentile(duration, 95),
                 p99_latency = percentile(duration, 99),
@@ -80,24 +95,40 @@ class AzureMCPClient:
                         "qps": float(row[3]) if row[3] else 0.0,
                         "query_timestamp": datetime.utcnow().isoformat(),
                         "source": "azure_monitor",
+                        "service_name": service_name,
+                        "available": True,
+                        "message": "",
                     }
 
-            logger.warning("No data returned from Azure Monitor, using fallback")
-            return self._get_mock_metrics()
+            logger.warning("No live request data returned from Azure Monitor.")
+            return self._build_unavailable_metrics(
+                service_name=service_name,
+                source="azure_monitor_no_data",
+                message="Azure Monitor query succeeded but returned no recent request data.",
+            )
 
         except Exception as e:
             logger.error(f"Error querying Azure Monitor: {e}")
-            return self._get_mock_metrics()
+            return self._build_unavailable_metrics(
+                service_name=service_name,
+                source="azure_monitor_error",
+                message=str(e),
+            )
 
-    def _get_mock_metrics(self) -> dict[str, Any]:
-        """Return mock metrics for demo/testing."""
+    def _build_unavailable_metrics(
+        self, service_name: str, source: str, message: str
+    ) -> dict[str, Any]:
+        """Return an explicit unavailable payload for live telemetry."""
         return {
-            "error_rate_percent": 0.05,
-            "p95_latency_ms": 180.0,
-            "p99_latency_ms": 450.0,
-            "qps": 5000.0,
+            "error_rate_percent": 0.0,
+            "p95_latency_ms": 0.0,
+            "p99_latency_ms": 0.0,
+            "qps": 0.0,
             "query_timestamp": datetime.utcnow().isoformat(),
-            "source": "mock",
+            "source": source,
+            "service_name": service_name,
+            "available": False,
+            "message": message,
         }
 
     async def get_deployment_history(
@@ -115,6 +146,7 @@ class AzureMCPClient:
         Returns:
             List of deployment records
         """
+        resolved_service_name = service_name or self.default_deployment_history_service
         if not self.workspace_id:
             return []
 
@@ -122,7 +154,7 @@ class AzureMCPClient:
             query = f"""
             customEvents
             | where name == "DeploymentCompleted"
-            | where customDimensions.service_name == "{service_name}"
+            | where customDimensions.service_name == "{resolved_service_name}"
             | order by timestamp desc
             | take {limit}
             | project 

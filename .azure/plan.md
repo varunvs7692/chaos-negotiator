@@ -1,6 +1,6 @@
 # Azure Deployment Plan
 
-> **Status:** Planning
+> **Status:** Executing
 
 Generated: 2026-03-11
 
@@ -18,11 +18,11 @@ Generated: 2026-03-11
 
 | Attribute | Value |
 |-----------|-------|
-| Classification | Production (assumed, pending confirmation) |
-| Scale | Medium (assumed, pending confirmation) |
-| Budget | Balanced (assumed, pending confirmation) |
-| **Subscription** | TBD - must confirm with user |
-| **Location** | TBD - must confirm with user |
+| Classification | Production |
+| Scale | Medium |
+| Budget | Balanced |
+| **Subscription** | `f60b9eb5-c74a-461f-ac97-2d5b60f54ce0` |
+| **Location** | `eastus` |
 
 ### Working assumptions
 
@@ -91,17 +91,17 @@ Generated: 2026-03-11
 
 ### Phase 1: Planning
 - [x] Analyze workspace
-- [x] Gather requirements (initial assumptions only; user confirmation still required)
-- [ ] Confirm subscription and location with user
+- [x] Gather requirements
+- [x] Confirm subscription and location with user
 - [x] Scan codebase
 - [x] Select recipe
 - [x] Plan architecture
-- [ ] **User approved this plan**
+- [x] **User approved this plan**
 
 ### Phase 2: Execution
-- [ ] Research components (load references, invoke skills)
-- [ ] Generate infrastructure files
-- [ ] Generate application configuration
+- [x] Research components (load references, invoke skills)
+- [x] Generate infrastructure files
+- [x] Generate application configuration
 - [ ] Generate Dockerfiles (if containerized)
 - [ ] Update plan status to "Ready for Validation"
 
@@ -136,17 +136,17 @@ Generated: 2026-03-11
 | File | Purpose | Status |
 |------|---------|--------|
 | `.azure/plan.md` | This plan | Complete |
-| `chaos_negotiator/mcp/azure_mcp.py` | Real Azure telemetry and deployment queries | Pending |
-| `chaos_negotiator/server.py` | Live dashboard API wiring and fallback semantics | Pending |
-| `frontend/src/pages/Dashboard.jsx` | Real-time dashboard UX for live/degraded states | Pending |
-| `infra/main.bicep` | Monitoring/config additions if required | Pending |
+| `chaos_negotiator/mcp/azure_mcp.py` | Real Azure telemetry and deployment queries | Complete |
+| `chaos_negotiator/server.py` | Live dashboard API wiring and fallback semantics | Complete |
+| `frontend/src/pages/Dashboard.jsx` | Real-time dashboard UX for live/degraded states | Complete |
+| `infra/main.bicep` | Monitoring/config additions if required | Complete |
 | `.github/workflows/deploy.yml` | Deployment validation for live telemetry config | Pending |
 
 ---
 
 ## 9. Next Steps
 
-> Current: Waiting for plan approval
+> Current: Awaiting Azure validation and deployment
 
 1. Confirm subscription, Azure region, and whether this should target production-grade live telemetry.
 2. Implement backend live-data ingestion from Azure Monitor/Application Insights and remove demo-only dashboard dependencies.

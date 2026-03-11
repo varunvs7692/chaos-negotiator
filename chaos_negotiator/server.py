@@ -18,6 +18,7 @@ from chaos_negotiator.approval_store import DeploymentApprovalStore
 from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.main import get_example_context
 from chaos_negotiator.metrics.opentelemetry import configure_opentelemetry
+from chaos_negotiator.mcp.azure_mcp import AzureMCPClient
 from chaos_negotiator.models import DeploymentContext, DeploymentChange
 
 # Configure OpenTelemetry
@@ -37,6 +38,7 @@ DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
 approval_store = DeploymentApprovalStore()
+telemetry_client = AzureMCPClient()
 
 
 class RiskState(TypedDict):
@@ -46,6 +48,17 @@ class RiskState(TypedDict):
     identified_factors: list[str]
     predicted_error_rate_increase: float
     predicted_latency_increase: float
+    deployment_id: str
+    service_name: str
+    environment: str
+    version: str
+    telemetry_source: str
+    telemetry_status: str
+    telemetry_message: str
+    current_error_rate_percent: float
+    current_p95_latency_ms: float
+    current_p99_latency_ms: float
+    current_qps: float
 
 
 class GlobalState(TypedDict):
@@ -62,6 +75,17 @@ GLOBAL_STATE: GlobalState = {
         "identified_factors": [],
         "predicted_error_rate_increase": 0,
         "predicted_latency_increase": 0,
+        "deployment_id": "",
+        "service_name": telemetry_client.default_service_name,
+        "environment": os.getenv("ENVIRONMENT", "production"),
+        "version": "unknown",
+        "telemetry_source": "startup",
+        "telemetry_status": "degraded",
+        "telemetry_message": "Dashboard is starting.",
+        "current_error_rate_percent": 0,
+        "current_p95_latency_ms": 0,
+        "current_p99_latency_ms": 0,
+        "current_qps": 0,
     },
     "last_update": None,
 }
@@ -415,6 +439,8 @@ def _save_evaluation_record(
     contract: dict[str, Any],
 ) -> None:
     """Persist an evaluated deployment for review workflows."""
+    contract_payload = dict(contract)
+    contract_payload["deployment_context"] = request.model_dump(mode="json")
     approval_store.save_evaluation(
         deployment_id=request.deployment_id,
         service_name=request.service_name,
@@ -423,9 +449,170 @@ def _save_evaluation_record(
         risk_score=response.risk_score,
         risk_level=response.risk_level,
         confidence_percent=response.confidence_percent,
-        contract=contract,
+        contract=contract_payload,
         canary_strategy=response.canary_strategy.model_dump(),
     )
+
+
+def _get_latest_dashboard_record() -> dict[str, Any] | None:
+    """Return the most recent evaluated deployment if available."""
+    records = approval_store.list_recent(limit=1)
+    if not records:
+        return None
+    return records[0]
+
+
+def _deserialize_changes(raw_changes: Any) -> list[DeploymentChange]:
+    """Best-effort conversion of persisted change payloads into models."""
+    if not isinstance(raw_changes, list):
+        return []
+    changes: list[DeploymentChange] = []
+    for item in raw_changes:
+        if not isinstance(item, dict):
+            continue
+        try:
+            changes.append(DeploymentChange.model_validate(item))
+        except Exception:
+            logger.warning("Skipping invalid persisted deployment change: %s", item)
+    return changes
+
+
+async def _build_live_dashboard_context() -> tuple[DeploymentContext | None, dict[str, Any] | None, dict[str, Any]]:
+    """Build dashboard context from latest real deployment plus Azure telemetry."""
+    latest_record = _get_latest_dashboard_record()
+    service_name = (
+        latest_record["service_name"] if latest_record else telemetry_client.default_service_name
+    )
+    telemetry = await telemetry_client.get_current_metrics(
+        service_name,
+        ["error_rate", "p95_latency", "p99_latency", "qps"],
+    )
+
+    environment = (
+        latest_record["environment"]
+        if latest_record
+        else os.getenv("ENVIRONMENT", "production")
+    )
+    version = latest_record["version"] if latest_record else os.getenv("APP_VERSION", "live")
+    deployment_id = (
+        latest_record["deployment_id"]
+        if latest_record
+        else f"live-{service_name.replace(' ', '-')}"
+    )
+
+    context_payload: dict[str, Any] = {}
+    if latest_record:
+        contract = latest_record.get("contract") or {}
+        raw_context = contract.get("deployment_context")
+        if isinstance(raw_context, dict):
+            context_payload = dict(raw_context)
+
+    changes = _deserialize_changes(context_payload.get("changes"))
+    total_lines_changed = context_payload.get("total_lines_changed")
+    if not isinstance(total_lines_changed, int):
+        total_lines_changed = sum(change.lines_changed for change in changes)
+
+    context = DeploymentContext(
+        deployment_id=str(context_payload.get("deployment_id") or deployment_id),
+        service_name=str(context_payload.get("service_name") or service_name),
+        environment=str(context_payload.get("environment") or environment),
+        version=str(context_payload.get("version") or version),
+        changes=changes,
+        total_lines_changed=total_lines_changed,
+        current_error_rate_percent=float(
+            telemetry["error_rate_percent"]
+            if telemetry.get("available", False)
+            else context_payload.get("current_error_rate_percent", 0.0)
+        ),
+        current_p95_latency_ms=float(
+            telemetry["p95_latency_ms"]
+            if telemetry.get("available", False)
+            else context_payload.get("current_p95_latency_ms", 0.0)
+        ),
+        current_p99_latency_ms=float(
+            telemetry["p99_latency_ms"]
+            if telemetry.get("available", False)
+            else context_payload.get("current_p99_latency_ms", 0.0)
+        ),
+        target_error_rate_percent=float(context_payload.get("target_error_rate_percent", 0.1)),
+        target_p95_latency_ms=float(context_payload.get("target_p95_latency_ms", 500.0)),
+        target_p99_latency_ms=float(context_payload.get("target_p99_latency_ms", 1000.0)),
+        current_qps=float(
+            telemetry["qps"] if telemetry.get("available", False) else context_payload.get("current_qps", 0.0)
+        ),
+        peak_qps=float(context_payload.get("peak_qps", context_payload.get("current_qps", 0.0))),
+        owner_team=str(context_payload.get("owner_team", "")),
+        reviewers=[
+            str(reviewer) for reviewer in context_payload.get("reviewers", []) if isinstance(reviewer, str)
+        ],
+        rollback_capability=bool(context_payload.get("rollback_capability", True)),
+    )
+    return context, latest_record, telemetry
+
+
+async def _build_live_risk_payload() -> dict[str, Any]:
+    """Build the live dashboard risk payload from real deployment and telemetry data."""
+    if not agent:
+        raise HTTPException(status_code=503, detail="Agent not initialized")
+
+    context, latest_record, telemetry = await _build_live_dashboard_context()
+    telemetry_status = "live" if telemetry.get("available", False) else "degraded"
+    telemetry_message = str(telemetry.get("message", ""))
+
+    if context is not None:
+        assessment = agent.risk_predictor.predict(context)
+        risk_payload = {
+            "risk_score": assessment.risk_score,
+            "risk_level": assessment.risk_level,
+            "confidence_percent": assessment.confidence_percent,
+            "identified_factors": [factor.value for factor in assessment.identified_factors],
+            "predicted_error_rate_increase": assessment.predicted_error_rate_increase_percent,
+            "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
+            "deployment_id": context.deployment_id,
+            "service_name": context.service_name,
+            "environment": context.environment,
+            "version": context.version,
+        }
+    elif latest_record is not None:
+        risk_payload = {
+            "risk_score": float(latest_record["risk_score"]),
+            "risk_level": str(latest_record["risk_level"]),
+            "confidence_percent": float(latest_record["confidence_percent"]),
+            "identified_factors": [],
+            "predicted_error_rate_increase": 0.0,
+            "predicted_latency_increase": 0.0,
+            "deployment_id": str(latest_record["deployment_id"]),
+            "service_name": str(latest_record["service_name"]),
+            "environment": str(latest_record["environment"]),
+            "version": str(latest_record["version"]),
+        }
+    else:
+        risk_payload = {
+            "risk_score": 0.0,
+            "risk_level": "unknown",
+            "confidence_percent": 0.0,
+            "identified_factors": [],
+            "predicted_error_rate_increase": 0.0,
+            "predicted_latency_increase": 0.0,
+            "deployment_id": "",
+            "service_name": telemetry_client.default_service_name,
+            "environment": os.getenv("ENVIRONMENT", "production"),
+            "version": "unknown",
+        }
+        telemetry_message = telemetry_message or "No deployment evaluation or Azure telemetry is available yet."
+
+    risk_payload.update(
+        {
+            "telemetry_source": str(telemetry.get("source", "unknown")),
+            "telemetry_status": telemetry_status,
+            "telemetry_message": telemetry_message,
+            "current_error_rate_percent": float(telemetry.get("error_rate_percent", 0.0)),
+            "current_p95_latency_ms": float(telemetry.get("p95_latency_ms", 0.0)),
+            "current_p99_latency_ms": float(telemetry.get("p99_latency_ms", 0.0)),
+            "current_qps": float(telemetry.get("qps", 0.0)),
+        }
+    )
+    return risk_payload
 
 
 def _build_request_from_github_webhook(event: str, payload: dict[str, Any]) -> DeploymentRequest:
@@ -636,12 +823,19 @@ async def get_latest_risk() -> dict[str, Any]:
 
 @app.get("/api/dashboard/history")
 async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
-    """Get recent deployment history from the learning store."""
+    """Get recent deployment history from local learning data and Azure telemetry."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     try:
         outcomes = agent.history_store.recent(limit)
+        latest_record = _get_latest_dashboard_record()
+        service_name = (
+            latest_record["service_name"]
+            if latest_record is not None
+            else telemetry_client.default_deployment_history_service
+        )
+        live_deployments = await telemetry_client.get_deployment_history(service_name, limit=min(limit, 10))
         logger.info(f"[HISTORY] Returning {len(outcomes)} deployment outcomes.")
         return {
             "total": len(outcomes),
@@ -658,6 +852,8 @@ async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
                 }
                 for o in outcomes
             ],
+            "live_deployments": live_deployments,
+            "service_name": service_name,
         }
     except Exception as e:
         logger.error(f"Error getting deployment history: {e}")
@@ -719,13 +915,23 @@ async def record_deployment_result(
 
 @app.get("/api/dashboard/canary")
 async def get_canary_strategy() -> dict[str, Any]:
-    """Get canary deployment strategy for a default scenario."""
+    """Get canary deployment strategy for the latest real deployment context."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
 
     try:
-        context = get_example_context("default")
-        return _build_canary_strategy(context).model_dump()
+        context, latest_record, telemetry = await _build_live_dashboard_context()
+        if context is not None:
+            payload = _build_canary_strategy(context).model_dump()
+        elif latest_record is not None:
+            payload = dict(latest_record["canary_strategy"])
+        else:
+            raise HTTPException(status_code=404, detail="No live deployment context available")
+
+        payload["telemetry_status"] = "live" if telemetry.get("available", False) else "degraded"
+        payload["telemetry_source"] = telemetry.get("source", "unknown")
+        payload["service_name"] = payload.get("service_name") or telemetry.get("service_name")
+        return payload
     except Exception as e:
         logger.error(f"Error getting canary strategy: {e}")
         raise HTTPException(status_code=400, detail="Failed to get canary strategy")
@@ -742,17 +948,7 @@ async def update_risk_state() -> dict[str, Any]:
         return cast(dict[str, Any], GLOBAL_STATE["risk"])
 
     try:
-        context = get_example_context("default")
-        assessment = agent.risk_predictor.predict(context)
-
-        GLOBAL_STATE["risk"] = {
-            "risk_score": assessment.risk_score,
-            "risk_level": assessment.risk_level,
-            "confidence_percent": assessment.confidence_percent,
-            "identified_factors": [f.value for f in assessment.identified_factors],
-            "predicted_error_rate_increase": assessment.predicted_error_rate_increase_percent,
-            "predicted_latency_increase": assessment.predicted_p95_latency_increase_percent,
-        }
+        GLOBAL_STATE["risk"] = cast(RiskState, await _build_live_risk_payload())
         GLOBAL_STATE["last_update"] = asyncio.get_running_loop().time()
 
         return cast(dict[str, Any], GLOBAL_STATE["risk"])

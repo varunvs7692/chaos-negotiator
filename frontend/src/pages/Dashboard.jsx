@@ -10,6 +10,16 @@ const initialRisk = {
   identified_factors: [],
   predicted_error_rate_increase: 0,
   predicted_latency_increase: 0,
+  deployment_id: "",
+  service_name: "",
+  environment: "",
+  version: "",
+  telemetry_source: "startup",
+  telemetry_status: "degraded",
+  telemetry_message: "",
+  current_error_rate_percent: 0,
+  current_p95_latency_ms: 0,
+  current_qps: 0,
 };
 
 export default function Dashboard() {
@@ -90,6 +100,13 @@ export default function Dashboard() {
     return canary.stages[0].traffic_percent;
   }, [canary]);
 
+  const telemetryTone = error ? "error" : risk.telemetry_status === "degraded" ? "pending" : "ok";
+  const telemetrySummary = error
+    ? error
+    : risk.telemetry_status === "degraded"
+      ? risk.telemetry_message || "Live telemetry is not available yet."
+      : `Source: ${risk.telemetry_source || "azure_monitor"}`;
+
   return (
     <div className="container">
       <section className="hero">
@@ -101,25 +118,34 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="hero-panel">
-          <span className="hero-kicker">Streaming</span>
+          <span className="hero-kicker">{risk.telemetry_status === "degraded" ? "Degraded" : "Streaming"}</span>
           <strong>{isConnected ? "Live feed active" : "Waiting for feed"}</strong>
           <small>{lastUpdate ? `Updated ${lastUpdate}` : "No live update yet"}</small>
+          <small>{risk.service_name || "chaos-negotiator"}</small>
         </div>
       </section>
 
-      <div className={`status ${error ? "error" : isConnected ? "ok" : "pending"}`}>
+      <div className={`status ${telemetryTone}`}>
         {error ? (
           <>
             <strong>Error:</strong> {error}
           </>
         ) : isConnected ? (
           <>
-            <strong>Connected</strong> <span>Last update: {lastUpdate || "just now"}</span>
+            <strong>{risk.telemetry_status === "degraded" ? "Connected with fallback" : "Connected"}</strong>
+            <span>{telemetrySummary}</span>
           </>
         ) : (
           <strong>Connecting...</strong>
         )}
       </div>
+
+      <section className="meta-strip">
+        <span className="meta-pill">Service: {risk.service_name || "unknown"}</span>
+        <span className="meta-pill">Deployment: {risk.deployment_id || "awaiting event"}</span>
+        <span className="meta-pill">Environment: {risk.environment || "unknown"}</span>
+        <span className="meta-pill">Version: {risk.version || "unknown"}</span>
+      </section>
 
       <div className="grid">
         <RiskCard
@@ -136,17 +162,25 @@ export default function Dashboard() {
           <div className="card-header">
             <div>
               <p className="eyebrow">Reliability Signals</p>
-              <h2>Live Impact</h2>
+              <h2>Live Telemetry</h2>
             </div>
           </div>
           <div className="metric-grid">
             <div className="metric-tile">
-              <span>Predicted Error Increase</span>
-              <strong>{risk.predicted_error_rate_increase}%</strong>
+              <span>Current Error Rate</span>
+              <strong>{Number(risk.current_error_rate_percent || 0).toFixed(2)}%</strong>
             </div>
             <div className="metric-tile">
-              <span>Predicted Latency Increase</span>
-              <strong>{risk.predicted_latency_increase}%</strong>
+              <span>Current P95 Latency</span>
+              <strong>{Number(risk.current_p95_latency_ms || 0).toFixed(0)} ms</strong>
+            </div>
+            <div className="metric-tile">
+              <span>Current QPS</span>
+              <strong>{Number(risk.current_qps || 0).toFixed(1)}</strong>
+            </div>
+            <div className="metric-tile">
+              <span>Telemetry Source</span>
+              <strong>{risk.telemetry_source || "unknown"}</strong>
             </div>
           </div>
         </div>

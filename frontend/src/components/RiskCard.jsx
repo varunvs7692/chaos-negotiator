@@ -2,6 +2,7 @@ import React from "react";
 
 export default function RiskCard({ risk, confidence, level }) {
   const normalizedLevel = level || "unknown";
+  const formatPercent = (value) => Number(value || 0).toFixed(2);
 
   return (
     <section className={`card risk-card risk-${normalizedLevel}`}>
@@ -16,10 +17,10 @@ export default function RiskCard({ risk, confidence, level }) {
       <div className="risk-hero">
         <div>
           <p className="hero-label">Risk Score</p>
-          <div className="hero-value">{risk}%</div>
+          <div className="hero-value">{formatPercent(risk)}%</div>
         </div>
         <div className="confidence-ring">
-          <span>{confidence}%</span>
+          <span>{formatPercent(confidence)}%</span>
           <small>confidence</small>
         </div>
       </div>
@@ -31,7 +32,7 @@ export default function RiskCard({ risk, confidence, level }) {
         </div>
         <div className="metric-tile">
           <span>Confidence</span>
-          <strong>{confidence}%</strong>
+          <strong>{formatPercent(confidence)}%</strong>
         </div>
       </div>
     </section>

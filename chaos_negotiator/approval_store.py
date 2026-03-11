@@ -103,6 +103,21 @@ class DeploymentApprovalStore:
         )
         return [self._row_to_dict(row) for row in cursor.fetchall()]
 
+    def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return the most recently updated approval records regardless of status."""
+        cursor = self.conn.execute(
+            """
+            SELECT deployment_id, service_name, environment, version, risk_score,
+                   risk_level, confidence_percent, approval_status, decision_reason,
+                   contract_json, canary_strategy_json, created_at, updated_at
+            FROM deployment_approvals
+            ORDER BY updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        return [self._row_to_dict(row) for row in cursor.fetchall()]
+
     def get(self, deployment_id: str) -> dict[str, Any] | None:
         cursor = self.conn.execute(
             """
