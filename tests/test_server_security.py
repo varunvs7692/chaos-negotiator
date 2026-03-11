@@ -147,8 +147,13 @@ def test_evaluate_persists_pending_approval_and_can_be_decided() -> None:
     assert get_data["approval_status"] == "pending"
     stored_record = server.approval_store.get(payload["deployment_id"])
     assert stored_record is not None
-    assert stored_record["contract"]["deployment_context"]["service_name"] == payload["service_name"]
-    assert stored_record["contract"]["deployment_context"]["changes"][0]["file_path"] == "api/payment.py"
+    assert (
+        stored_record["contract"]["deployment_context"]["service_name"] == payload["service_name"]
+    )
+    assert (
+        stored_record["contract"]["deployment_context"]["changes"][0]["file_path"]
+        == "api/payment.py"
+    )
 
     assert approve_response.status_code == 200
     approve_data = approve_response.json()

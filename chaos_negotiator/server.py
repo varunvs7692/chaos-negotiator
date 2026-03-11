@@ -477,7 +477,9 @@ def _deserialize_changes(raw_changes: Any) -> list[DeploymentChange]:
     return changes
 
 
-async def _build_live_dashboard_context() -> tuple[DeploymentContext | None, dict[str, Any] | None, dict[str, Any]]:
+async def _build_live_dashboard_context() -> (
+    tuple[DeploymentContext | None, dict[str, Any] | None, dict[str, Any]]
+):
     """Build dashboard context from latest real deployment plus Azure telemetry."""
     latest_record = _get_latest_dashboard_record()
     service_name = (
@@ -489,9 +491,7 @@ async def _build_live_dashboard_context() -> tuple[DeploymentContext | None, dic
     )
 
     environment = (
-        latest_record["environment"]
-        if latest_record
-        else os.getenv("ENVIRONMENT", "production")
+        latest_record["environment"] if latest_record else os.getenv("ENVIRONMENT", "production")
     )
     version = latest_record["version"] if latest_record else os.getenv("APP_VERSION", "live")
     deployment_id = (
@@ -538,12 +538,16 @@ async def _build_live_dashboard_context() -> tuple[DeploymentContext | None, dic
         target_p95_latency_ms=float(context_payload.get("target_p95_latency_ms", 500.0)),
         target_p99_latency_ms=float(context_payload.get("target_p99_latency_ms", 1000.0)),
         current_qps=float(
-            telemetry["qps"] if telemetry.get("available", False) else context_payload.get("current_qps", 0.0)
+            telemetry["qps"]
+            if telemetry.get("available", False)
+            else context_payload.get("current_qps", 0.0)
         ),
         peak_qps=float(context_payload.get("peak_qps", context_payload.get("current_qps", 0.0))),
         owner_team=str(context_payload.get("owner_team", "")),
         reviewers=[
-            str(reviewer) for reviewer in context_payload.get("reviewers", []) if isinstance(reviewer, str)
+            str(reviewer)
+            for reviewer in context_payload.get("reviewers", [])
+            if isinstance(reviewer, str)
         ],
         rollback_capability=bool(context_payload.get("rollback_capability", True)),
     )
@@ -599,7 +603,9 @@ async def _build_live_risk_payload() -> dict[str, Any]:
             "environment": os.getenv("ENVIRONMENT", "production"),
             "version": "unknown",
         }
-        telemetry_message = telemetry_message or "No deployment evaluation or Azure telemetry is available yet."
+        telemetry_message = (
+            telemetry_message or "No deployment evaluation or Azure telemetry is available yet."
+        )
 
     risk_payload.update(
         {
@@ -835,7 +841,9 @@ async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
             if latest_record is not None
             else telemetry_client.default_deployment_history_service
         )
-        live_deployments = await telemetry_client.get_deployment_history(service_name, limit=min(limit, 10))
+        live_deployments = await telemetry_client.get_deployment_history(
+            service_name, limit=min(limit, 10)
+        )
         logger.info(f"[HISTORY] Returning {len(outcomes)} deployment outcomes.")
         return {
             "total": len(outcomes),
