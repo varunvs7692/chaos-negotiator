@@ -14,7 +14,12 @@ npm start           # launches dev server on http://localhost:3000
 ```
 
 The React app expects the Python server to be running concurrently on
-`http://localhost:8000` with the `/api/deployments/latest` endpoint available.
+`http://localhost:8000` and uses the dashboard endpoints exposed by the
+FastAPI server:
+
+- `/api/dashboard/risk`
+- `/api/dashboard/canary`
+- `/ws/risk`
 
 ## Folder structure
 

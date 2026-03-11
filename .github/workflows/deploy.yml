@@ -225,6 +225,34 @@ jobs:
           return 0
         }
 
+        probe_root_assets() {
+          body_file=$(mktemp)
+          status_code=$(curl -sS -o "$body_file" -w "%{http_code}" "$APP_URL/")
+
+          if [ "$status_code" != "200" ]; then
+            echo "Root page probe failed with $status_code"
+            cat "$body_file" || true
+            rm -f "$body_file"
+            return 1
+          fi
+
+          asset_path=$(grep -oE '/static/js/[^"]+\.js' "$body_file" | head -n 1 || true)
+          if [ -n "$asset_path" ]; then
+            asset_status=$(curl -sS -o /dev/null -w "%{http_code}" "$APP_URL$asset_path")
+            if [ "$asset_status" != "200" ]; then
+              echo "Frontend asset probe failed for $asset_path with $asset_status"
+              rm -f "$body_file"
+              return 1
+            fi
+            echo "Frontend root and bundled asset are reachable."
+          else
+            echo "No bundled JS asset found in root HTML; assuming self-contained dashboard."
+          fi
+
+          rm -f "$body_file"
+          return 0
+        }
+
         wait_for_endpoint() {
           method="$1"
           path="$2"
@@ -247,6 +275,21 @@ jobs:
 
         echo "Waiting for app readiness: GET /health"
         wait_for_endpoint "GET" "/health" "" "Health check"
+
+        echo "Smoke test: GET / and bundled frontend assets"
+        for i in {1..30}; do
+          if probe_root_assets; then
+            echo "Root page and assets passed on attempt $i/30"
+            break
+          fi
+          if [ "$i" -eq 30 ]; then
+            echo "Root page/assets failed after 30 attempts."
+            print_diagnostics
+            exit 1
+          fi
+          echo "Root page/assets not ready yet (attempt $i/30). Waiting 10s..."
+          sleep 10
+        done
 
         echo "Smoke test: GET /api"
         wait_for_endpoint "GET" "/api" "" "GET /api"
