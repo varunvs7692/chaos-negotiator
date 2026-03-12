@@ -156,6 +156,10 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
           name: 'app-insights-key'
           value: appInsights.properties.InstrumentationKey
         }
+        {
+          name: 'app-insights-connection-string'
+          value: appInsights.properties.ConnectionString
+        }
       ]
     }
     template: {
@@ -175,6 +179,14 @@ resource containerApp 'Microsoft.App/containerApps@2023-11-02-preview' = {
             {
               name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
               secretRef: 'app-insights-key'
+            }
+            {
+              name: 'APPINSIGHTS_INSTRUMENTATION_KEY'
+              secretRef: 'app-insights-key'
+            }
+            {
+              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+              secretRef: 'app-insights-connection-string'
             }
             {
               name: 'AZURE_MONITOR_WORKSPACE_ID'

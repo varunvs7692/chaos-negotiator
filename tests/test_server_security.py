@@ -6,6 +6,9 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from chaos_negotiator import server
+from chaos_negotiator.metrics.opentelemetry import (
+    resolve_applicationinsights_connection_string,
+)
 
 
 def test_require_api_key_skips_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -70,6 +73,33 @@ def test_hackathon_proof_endpoint_exposes_core_requirement_mapping() -> None:
     assert "GitHub Actions CI/CD" in data["required_developer_tools"]
     assert "Azure Container Apps" in data["hero_technologies"]
     assert "Deployment risk evaluation API" in data["working_features"]
+
+
+def test_resolve_applicationinsights_connection_string_prefers_explicit_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OpenTelemetry should use a provided connection string when available."""
+    monkeypatch.setenv(
+        "APPLICATIONINSIGHTS_CONNECTION_STRING",
+        "InstrumentationKey=abc;IngestionEndpoint=https://eastus.example",
+    )
+    monkeypatch.delenv("APPINSIGHTS_INSTRUMENTATIONKEY", raising=False)
+    monkeypatch.delenv("APPINSIGHTS_INSTRUMENTATION_KEY", raising=False)
+
+    assert (
+        resolve_applicationinsights_connection_string()
+        == "InstrumentationKey=abc;IngestionEndpoint=https://eastus.example"
+    )
+
+
+def test_resolve_applicationinsights_connection_string_builds_from_instrumentation_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OpenTelemetry should fall back to the deployed instrumentation key env names."""
+    monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
+    monkeypatch.setenv("APPINSIGHTS_INSTRUMENTATIONKEY", "abc123")
+
+    assert resolve_applicationinsights_connection_string() == "InstrumentationKey=abc123"
 
 
 def test_analyze_alias_matches_evaluate_shape() -> None:

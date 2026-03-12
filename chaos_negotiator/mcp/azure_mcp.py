@@ -65,59 +65,30 @@ class AzureMCPClient:
             # Query Azure Monitor for real metrics
             end_time = datetime.utcnow()
             start_time = end_time - timedelta(minutes=time_window_minutes)
-
-            # Support both workspace-based Application Insights (`AppRequests`)
-            # and classic-style `requests` schemas.
-            query = f"""
-            union isfuzzy=true
-                (
-                    AppRequests
-                    | project
-                        timestamp = TimeGenerated,
-                        success_value = tobool(Success),
-                        duration_ms = todouble(DurationMs),
-                        role_name = tostring(AppRoleName),
-                        role_instance = tostring(AppRoleInstance)
-                ),
-                (
-                    requests
-                    | project
-                        timestamp = timestamp,
-                        success_value = tobool(success),
-                        duration_ms = todouble(duration),
-                        role_name = tostring(column_ifexists("cloud_RoleName", "")),
-                        role_instance = tostring(column_ifexists("cloud_RoleInstance", ""))
-                )
-            | where timestamp between (datetime({start_time.isoformat()}) .. datetime({end_time.isoformat()}))
-            | where role_name == "{service_name}" or role_instance contains "{service_name}"
-            | summarize
-                error_rate = avg(toint(success_value == false)) * 100,
-                p95_latency = percentile(duration_ms, 95),
-                p99_latency = percentile(duration_ms, 99),
-                qps = count() / {time_window_minutes * 60}
-            """
-
-            response = self.logs_client.query_workspace(
-                workspace_id=self.workspace_id,
-                query=query,
-                timespan=timedelta(minutes=time_window_minutes),
+            scoped_metrics = self._query_request_metrics(
+                service_name=service_name,
+                start_time=start_time,
+                end_time=end_time,
+                time_window_minutes=time_window_minutes,
+                include_service_filter=True,
             )
+            if scoped_metrics is not None:
+                return scoped_metrics
 
-            if response.status == LogsQueryStatus.SUCCESS and isinstance(response, LogsQueryResult):
-                table = response.tables[0]  # type: ignore
-                if table.rows:
-                    row = table.rows[0]
-                    return {
-                        "error_rate_percent": float(row[0]) if row[0] else 0.0,
-                        "p95_latency_ms": float(row[1]) if row[1] else 0.0,
-                        "p99_latency_ms": float(row[2]) if row[2] else 0.0,
-                        "qps": float(row[3]) if row[3] else 0.0,
-                        "query_timestamp": datetime.utcnow().isoformat(),
-                        "source": "azure_monitor",
-                        "service_name": service_name,
-                        "available": True,
-                        "message": "",
-                    }
+            fallback_metrics = self._query_request_metrics(
+                service_name=service_name,
+                start_time=start_time,
+                end_time=end_time,
+                time_window_minutes=time_window_minutes,
+                include_service_filter=False,
+            )
+            if fallback_metrics is not None:
+                fallback_metrics["source"] = "azure_monitor_workspace"
+                fallback_metrics["message"] = (
+                    "Using workspace-wide recent request telemetry because no service-specific "
+                    "role name matched."
+                )
+                return fallback_metrics
 
             logger.warning("No live request data returned from Azure Monitor.")
             return self._build_unavailable_metrics(
@@ -133,6 +104,81 @@ class AzureMCPClient:
                 source="azure_monitor_error",
                 message=str(e),
             )
+
+    def _query_request_metrics(
+        self,
+        service_name: str,
+        start_time: datetime,
+        end_time: datetime,
+        time_window_minutes: int,
+        include_service_filter: bool,
+    ) -> dict[str, Any] | None:
+        """Query recent request metrics from Azure Monitor."""
+        service_filter = ""
+        if include_service_filter:
+            service_filter = (
+                f'\n            | where role_name == "{service_name}" '
+                f'or role_instance contains "{service_name}"'
+            )
+
+        query = f"""
+            union isfuzzy=true
+                (
+                    AppRequests
+                    | project
+                        timestamp = TimeGenerated,
+                        success_value = tobool(Success),
+                        duration_ms = todouble(DurationMs),
+                        role_name = tostring(column_ifexists("AppRoleName", "")),
+                        role_instance = tostring(column_ifexists("AppRoleInstance", ""))
+                ),
+                (
+                    requests
+                    | project
+                        timestamp = timestamp,
+                        success_value = tobool(success),
+                        duration_ms = todouble(duration),
+                        role_name = tostring(column_ifexists("cloud_RoleName", "")),
+                        role_instance = tostring(column_ifexists("cloud_RoleInstance", ""))
+                )
+            | where timestamp between (datetime({start_time.isoformat()}) .. datetime({end_time.isoformat()})){service_filter}
+            | summarize
+                request_count = count(),
+                error_rate = avg(toint(success_value == false)) * 100,
+                p95_latency = percentile(duration_ms, 95),
+                p99_latency = percentile(duration_ms, 99),
+                qps = count() / {time_window_minutes * 60}
+        """
+
+        response = self.logs_client.query_workspace(
+            workspace_id=self.workspace_id,
+            query=query,
+            timespan=timedelta(minutes=time_window_minutes),
+        )
+
+        if response.status != LogsQueryStatus.SUCCESS or not isinstance(response, LogsQueryResult):
+            return None
+
+        table = response.tables[0]  # type: ignore[index]
+        if not table.rows:
+            return None
+
+        row = table.rows[0]
+        request_count = int(row[0]) if row[0] else 0
+        if request_count <= 0:
+            return None
+
+        return {
+            "error_rate_percent": float(row[1]) if row[1] else 0.0,
+            "p95_latency_ms": float(row[2]) if row[2] else 0.0,
+            "p99_latency_ms": float(row[3]) if row[3] else 0.0,
+            "qps": float(row[4]) if row[4] else 0.0,
+            "query_timestamp": datetime.utcnow().isoformat(),
+            "source": "azure_monitor",
+            "service_name": service_name,
+            "available": True,
+            "message": "",
+        }
 
     def _build_unavailable_metrics(
         self, service_name: str, source: str, message: str

@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 from datetime import timedelta
@@ -5,13 +6,35 @@ from azure.identity import DefaultAzureCredential
 from azure.monitor.query import MetricsQueryClient
 from azure.monitor.opentelemetry import configure_azure_monitor
 
+logger = logging.getLogger(__name__)
+
+
+def resolve_applicationinsights_connection_string() -> str | None:
+    """Resolve the best available Application Insights connection string."""
+    connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING") or os.environ.get(
+        "APPINSIGHTS_CONNECTION_STRING"
+    )
+    if connection_string:
+        return connection_string
+
+    instrumentation_key = os.environ.get("APPINSIGHTS_INSTRUMENTATIONKEY") or os.environ.get(
+        "APPINSIGHTS_INSTRUMENTATION_KEY"
+    )
+    if instrumentation_key:
+        return f"InstrumentationKey={instrumentation_key}"
+
+    return None
+
 
 def configure_opentelemetry() -> None:
-    connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")
+    connection_string = resolve_applicationinsights_connection_string()
     if connection_string:
         configure_azure_monitor(
             connection_string=connection_string,
         )
+        logger.info("Azure Monitor OpenTelemetry configured")
+    else:
+        logger.warning("Application Insights connection string not configured")
 
 
 def get_live_metrics(deployment_id: str) -> dict:

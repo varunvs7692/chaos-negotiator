@@ -74,7 +74,9 @@ class SemanticKernelOrchestrator:
 
     def _setup_telemetry(self) -> None:
         """Initialize Application Insights telemetry."""
-        instrumentation_key = os.getenv("APPINSIGHTS_INSTRUMENTATION_KEY")
+        instrumentation_key = os.getenv("APPINSIGHTS_INSTRUMENTATION_KEY") or os.getenv(
+            "APPINSIGHTS_INSTRUMENTATIONKEY"
+        )
 
         if instrumentation_key:
             self.telemetry = TelemetryClient(instrumentation_key)
