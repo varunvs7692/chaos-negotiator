@@ -1,5 +1,6 @@
 """Security-focused tests for HTTP server behavior."""
 
+import asyncio
 from pathlib import Path
 import pytest
 from fastapi import HTTPException
@@ -287,6 +288,48 @@ def test_dashboard_endpoints_and_docs_return_json() -> None:
 
     assert docs_response.status_code == 200
     assert "text/html" in docs_response.headers["content-type"]
+
+
+def test_dashboard_telemetry_prefers_deployed_service_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Live telemetry should query the deployed app service, not the latest saved demo record."""
+    monkeypatch.setattr(
+        server,
+        "_get_latest_dashboard_record",
+        lambda: {
+            "deployment_id": "smoke-deploy",
+            "service_name": "smoke-service",
+            "environment": "staging",
+            "version": "v0.0.1",
+            "contract": {"deployment_context": {"service_name": "smoke-service"}},
+        },
+    )
+    monkeypatch.setattr(server.telemetry_client, "default_service_name", "chaos-negotiator")
+
+    captured: dict[str, str] = {}
+
+    async def fake_get_current_metrics(
+        resource_id: str | None, metric_names: list[str], time_window_minutes: int = 5
+    ) -> dict[str, object]:
+        captured["resource_id"] = resource_id or ""
+        return {
+            "available": False,
+            "source": "azure_monitor_no_data",
+            "message": "no data",
+            "error_rate_percent": 0.0,
+            "p95_latency_ms": 0.0,
+            "p99_latency_ms": 0.0,
+            "qps": 0.0,
+        }
+
+    monkeypatch.setattr(server.telemetry_client, "get_current_metrics", fake_get_current_metrics)
+
+    context, _, _ = asyncio.run(server._build_live_dashboard_context())
+
+    assert captured["resource_id"] == "chaos-negotiator"
+    assert context is not None
+    assert context.service_name == "chaos-negotiator"
 
 
 def test_risk_websocket_streams_json_payload() -> None:

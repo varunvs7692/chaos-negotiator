@@ -535,8 +535,8 @@ async def _build_live_dashboard_context() -> (
 ):
     """Build dashboard context from latest real deployment plus Azure telemetry."""
     latest_record = _get_latest_dashboard_record()
-    service_name = (
-        latest_record["service_name"] if latest_record else telemetry_client.default_service_name
+    service_name = telemetry_client.default_service_name or (
+        latest_record["service_name"] if latest_record else "chaos-negotiator"
     )
     telemetry = await telemetry_client.get_current_metrics(
         service_name,
@@ -567,7 +567,7 @@ async def _build_live_dashboard_context() -> (
 
     context = DeploymentContext(
         deployment_id=str(context_payload.get("deployment_id") or deployment_id),
-        service_name=str(context_payload.get("service_name") or service_name),
+        service_name=service_name,
         environment=str(context_payload.get("environment") or environment),
         version=str(context_payload.get("version") or version),
         changes=changes,
