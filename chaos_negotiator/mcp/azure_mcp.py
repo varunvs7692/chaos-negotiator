@@ -90,6 +90,13 @@ class AzureMCPClient:
                 )
                 return fallback_metrics
 
+            console_metrics = self._query_container_console_metrics(
+                service_name=service_name,
+                time_window_minutes=time_window_minutes,
+            )
+            if console_metrics is not None:
+                return console_metrics
+
             logger.warning("No live request data returned from Azure Monitor.")
             return self._build_unavailable_metrics(
                 service_name=service_name,
@@ -186,6 +193,62 @@ class AzureMCPClient:
             "service_name": service_name,
             "available": True,
             "message": "",
+        }
+
+    def _query_container_console_metrics(
+        self, service_name: str, time_window_minutes: int
+    ) -> dict[str, Any] | None:
+        """Derive live request metrics from Container App console access logs."""
+        workspace_id = self.workspace_id
+        if workspace_id is None:
+            return None
+
+        query = f"""
+            ContainerAppConsoleLogs_CL
+            | where TimeGenerated > ago({time_window_minutes}m)
+            | where ContainerAppName_s == "{service_name}"
+            | where Log_s has "HTTP/1.1"
+            | extend status_code = toint(extract('HTTP/1.1"\\s+(\\d+)', 1, Log_s))
+            | summarize
+                request_count = count(),
+                error_count = countif(status_code >= 500)
+            | extend
+                error_rate = iff(request_count > 0, todouble(error_count) * 100.0 / todouble(request_count), 0.0),
+                qps = todouble(request_count) / {time_window_minutes * 60.0}
+        """
+
+        response = self.logs_client.query_workspace(
+            workspace_id=workspace_id,
+            query=query,
+            timespan=timedelta(minutes=time_window_minutes),
+        )
+
+        if response.status != LogsQueryStatus.SUCCESS or not isinstance(response, LogsQueryResult):
+            return None
+
+        result = cast(LogsQueryResult, response)
+        if not result.tables:
+            return None
+
+        table = result.tables[0]
+        if not table.rows:
+            return None
+
+        row = table.rows[0]
+        request_count = int(row[0]) if row[0] else 0
+        if request_count <= 0:
+            return None
+
+        return {
+            "error_rate_percent": float(row[2]) if row[2] else 0.0,
+            "p95_latency_ms": 0.0,
+            "p99_latency_ms": 0.0,
+            "qps": float(row[3]) if row[3] else 0.0,
+            "query_timestamp": datetime.utcnow().isoformat(),
+            "source": "container_app_console_logs",
+            "service_name": service_name,
+            "available": True,
+            "message": "Using live Container App access logs for request rate and error rate.",
         }
 
     def _build_unavailable_metrics(
