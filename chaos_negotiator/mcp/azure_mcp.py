@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from azure.identity import DefaultAzureCredential
 from azure.monitor.query import LogsQueryClient, LogsQueryResult, LogsQueryStatus
@@ -114,6 +114,10 @@ class AzureMCPClient:
         include_service_filter: bool,
     ) -> dict[str, Any] | None:
         """Query recent request metrics from Azure Monitor."""
+        workspace_id = self.workspace_id
+        if workspace_id is None:
+            return None
+
         service_filter = ""
         if include_service_filter:
             service_filter = (
@@ -151,7 +155,7 @@ class AzureMCPClient:
         """
 
         response = self.logs_client.query_workspace(
-            workspace_id=self.workspace_id,
+            workspace_id=workspace_id,
             query=query,
             timespan=timedelta(minutes=time_window_minutes),
         )
@@ -159,7 +163,11 @@ class AzureMCPClient:
         if response.status != LogsQueryStatus.SUCCESS or not isinstance(response, LogsQueryResult):
             return None
 
-        table = response.tables[0]  # type: ignore[index]
+        result = cast(LogsQueryResult, response)
+        if not result.tables:
+            return None
+
+        table = result.tables[0]
         if not table.rows:
             return None
 
