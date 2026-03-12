@@ -208,7 +208,7 @@ class AzureMCPClient:
             | where TimeGenerated > ago({time_window_minutes}m)
             | where ContainerAppName_s == "{service_name}"
             | where Log_s has "HTTP/1.1"
-            | extend status_code = toint(extract('HTTP/1.1"\\s+(\\d+)', 1, Log_s))
+            | parse Log_s with * 'HTTP/1.1" ' status_code:int *
             | summarize
                 request_count = count(),
                 error_count = countif(status_code >= 500)
