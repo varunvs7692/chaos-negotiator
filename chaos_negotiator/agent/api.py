@@ -4,6 +4,7 @@ import logging
 import time
 import asyncio
 import json
+from contextlib import asynccontextmanager
 
 from chaos_negotiator.agent.agent import ChaosNegotiatorAgent
 from chaos_negotiator.models import DeploymentChange, DeploymentContext
@@ -32,7 +33,22 @@ manager = ConnectionManager()
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting background task to broadcast dashboard data.")
+    broadcast_task = asyncio.create_task(broadcast_dashboard_data())
+    try:
+        yield
+    finally:
+        broadcast_task.cancel()
+        try:
+            await broadcast_task
+        except asyncio.CancelledError:
+            logger.info("Dashboard broadcast task cancelled.")
+
+
+app = FastAPI(lifespan=lifespan)
 # allow the dashboard (running on localhost:3000) to call our API during development
 app.add_middleware(
     CORSMiddleware,
@@ -169,7 +185,3 @@ async def broadcast_dashboard_data() -> None:
         await asyncio.sleep(10)
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    logger.info("Starting background task to broadcast dashboard data.")
-    asyncio.create_task(broadcast_dashboard_data())

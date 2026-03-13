@@ -62,40 +62,26 @@ class AzureMCPClient:
             )
 
         try:
-            # Query Azure Monitor for real metrics
-            end_time = datetime.utcnow()
-            start_time = end_time - timedelta(minutes=time_window_minutes)
-            scoped_metrics = self._query_request_metrics(
-                service_name=service_name,
-                start_time=start_time,
-                end_time=end_time,
-                time_window_minutes=time_window_minutes,
-                include_service_filter=True,
-            )
-            if scoped_metrics is not None:
-                return scoped_metrics
+            # Retry with wider windows so low-traffic services still surface recent telemetry.
+            lookback_windows = [time_window_minutes, 15, 60]
+            unique_windows = list(dict.fromkeys(max(window, 1) for window in lookback_windows))
 
-            fallback_metrics = self._query_request_metrics(
-                service_name=service_name,
-                start_time=start_time,
-                end_time=end_time,
-                time_window_minutes=time_window_minutes,
-                include_service_filter=False,
-            )
-            if fallback_metrics is not None:
-                fallback_metrics["source"] = "azure_monitor_workspace"
-                fallback_metrics["message"] = (
-                    "Using workspace-wide recent request telemetry because no service-specific "
-                    "role name matched."
+            for lookback_minutes in unique_windows:
+                metrics = self._query_metrics_for_window(
+                    service_name=service_name,
+                    time_window_minutes=lookback_minutes,
                 )
-                return fallback_metrics
-
-            console_metrics = self._query_container_console_metrics(
-                service_name=service_name,
-                time_window_minutes=time_window_minutes,
-            )
-            if console_metrics is not None:
-                return console_metrics
+                if metrics is not None:
+                    metrics["lookback_window_minutes"] = lookback_minutes
+                    if lookback_minutes != time_window_minutes:
+                        message = str(metrics.get("message", "")).strip()
+                        window_note = (
+                            f"Returned from a {lookback_minutes} minute lookback window."
+                        )
+                        metrics["message"] = (
+                            f"{message} {window_note}".strip() if message else window_note
+                        )
+                    return metrics
 
             logger.warning("No live request data returned from Azure Monitor.")
             return self._build_unavailable_metrics(
@@ -111,6 +97,49 @@ class AzureMCPClient:
                 source="azure_monitor_error",
                 message=str(e),
             )
+
+    def _query_metrics_for_window(
+        self,
+        service_name: str,
+        time_window_minutes: int,
+    ) -> dict[str, Any] | None:
+        """Query request metrics for a single lookback window with progressive fallback."""
+        end_time = datetime.utcnow()
+        start_time = end_time - timedelta(minutes=time_window_minutes)
+
+        scoped_metrics = self._query_request_metrics(
+            service_name=service_name,
+            start_time=start_time,
+            end_time=end_time,
+            time_window_minutes=time_window_minutes,
+            include_service_filter=True,
+        )
+        if scoped_metrics is not None:
+            return scoped_metrics
+
+        fallback_metrics = self._query_request_metrics(
+            service_name=service_name,
+            start_time=start_time,
+            end_time=end_time,
+            time_window_minutes=time_window_minutes,
+            include_service_filter=False,
+        )
+        if fallback_metrics is not None:
+            fallback_metrics["source"] = "azure_monitor_workspace"
+            fallback_metrics["message"] = (
+                "Using workspace-wide recent request telemetry because no service-specific "
+                "role name matched."
+            )
+            return fallback_metrics
+
+        console_metrics = self._query_container_console_metrics(
+            service_name=service_name,
+            time_window_minutes=time_window_minutes,
+        )
+        if console_metrics is not None:
+            return console_metrics
+
+        return None
 
     def _query_request_metrics(
         self,
@@ -207,8 +236,8 @@ class AzureMCPClient:
             ContainerAppConsoleLogs_CL
             | where TimeGenerated > ago({time_window_minutes}m)
             | where ContainerAppName_s == "{service_name}"
-            | where Log_s has "HTTP/1.1"
-            | parse Log_s with * 'HTTP/1.1" ' status_code:int *
+            | where Log_s has "HTTP/"
+            | extend status_code = toint(extract(@'HTTP/[0-9.]+"\\s+([0-9]{{3}})', 1, Log_s))
             | summarize
                 request_count = count(),
                 error_count = countif(status_code >= 500)
@@ -237,7 +266,57 @@ class AzureMCPClient:
         row = table.rows[0]
         request_count = int(row[0]) if row[0] else 0
         if request_count <= 0:
-            return None
+            workspace_query = f"""
+                ContainerAppConsoleLogs_CL
+                | where TimeGenerated > ago({time_window_minutes}m)
+                | where Log_s has "HTTP/"
+                | extend status_code = toint(extract(@'HTTP/[0-9.]+"\\s+([0-9]{{3}})', 1, Log_s))
+                | summarize
+                    request_count = count(),
+                    error_count = countif(status_code >= 500)
+                | extend
+                    error_rate = iff(request_count > 0, todouble(error_count) * 100.0 / todouble(request_count), 0.0),
+                    qps = todouble(request_count) / {time_window_minutes * 60.0}
+            """
+
+            workspace_response = self.logs_client.query_workspace(
+                workspace_id=workspace_id,
+                query=workspace_query,
+                timespan=timedelta(minutes=time_window_minutes),
+            )
+
+            if workspace_response.status != LogsQueryStatus.SUCCESS or not isinstance(
+                workspace_response, LogsQueryResult
+            ):
+                return None
+
+            workspace_result = cast(LogsQueryResult, workspace_response)
+            if not workspace_result.tables:
+                return None
+
+            workspace_table = workspace_result.tables[0]
+            if not workspace_table.rows:
+                return None
+
+            workspace_row = workspace_table.rows[0]
+            workspace_request_count = int(workspace_row[0]) if workspace_row[0] else 0
+            if workspace_request_count <= 0:
+                return None
+
+            return {
+                "error_rate_percent": float(workspace_row[2]) if workspace_row[2] else 0.0,
+                "p95_latency_ms": 0.0,
+                "p99_latency_ms": 0.0,
+                "qps": float(workspace_row[3]) if workspace_row[3] else 0.0,
+                "query_timestamp": datetime.utcnow().isoformat(),
+                "source": "container_app_console_logs_workspace",
+                "service_name": service_name,
+                "available": True,
+                "message": (
+                    "Using workspace-wide Container App access logs because no service-specific "
+                    "ContainerAppName match was found."
+                ),
+            }
 
         return {
             "error_rate_percent": float(row[2]) if row[2] else 0.0,
