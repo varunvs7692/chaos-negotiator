@@ -4,6 +4,7 @@ import logging
 import time
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from chaos_negotiator.agent.agent import ChaosNegotiatorAgent
@@ -35,7 +36,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("Starting background task to broadcast dashboard data.")
     broadcast_task = asyncio.create_task(broadcast_dashboard_data())
     try:
