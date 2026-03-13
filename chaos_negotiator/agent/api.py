@@ -183,5 +183,3 @@ async def broadcast_dashboard_data() -> None:
         except Exception as e:
             logger.error("Error broadcasting dashboard data: %s", e)
         await asyncio.sleep(10)
-
-

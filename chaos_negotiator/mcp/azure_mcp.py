@@ -75,9 +75,7 @@ class AzureMCPClient:
                     metrics["lookback_window_minutes"] = lookback_minutes
                     if lookback_minutes != time_window_minutes:
                         message = str(metrics.get("message", "")).strip()
-                        window_note = (
-                            f"Returned from a {lookback_minutes} minute lookback window."
-                        )
+                        window_note = f"Returned from a {lookback_minutes} minute lookback window."
                         metrics["message"] = (
                             f"{message} {window_note}".strip() if message else window_note
                         )
