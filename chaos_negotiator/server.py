@@ -9,10 +9,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, TypedDict, cast
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response, WebSocket, WebSocketDisconnect  # type: ignore[import-not-found]
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket, WebSocketDisconnect  # type: ignore[import-not-found]
 from fastapi.responses import FileResponse  # type: ignore[import-not-found]
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from pydantic import BaseModel, Field
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from chaos_negotiator.approval_store import DeploymentApprovalStore
 from chaos_negotiator.agent import ChaosNegotiatorAgent
@@ -35,10 +39,30 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 FRONTEND_INDEX_PATH = STATIC_DIR / "index.html"
 DASHBOARD_PATH = STATIC_DIR / "dashboard.html"
 
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOW_ORIGINS", ",".join(DEFAULT_ALLOWED_ORIGINS)).split(",")
+    if origin.strip()
+]
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
+    if host.strip()
+]
+MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", "1048576"))
+ENABLE_HSTS = os.getenv("ENABLE_HSTS", "true").lower() in {"1", "true", "yes", "on"}
+
 # Global agent instance
 agent: ChaosNegotiatorAgent | None = None
 approval_store = DeploymentApprovalStore()
 telemetry_client = AzureMCPClient()
+limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
 
 class RiskState(TypedDict):
@@ -143,24 +167,43 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # allow dashboard page or external tools to call our API during development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-GitHub-Event", "X-Hub-Signature-256"],
+    allow_credentials=False,
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
 
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next: Any) -> Response:
     """Apply baseline security headers to all HTTP responses."""
+    content_length_header = request.headers.get("content-length")
+    if content_length_header:
+        try:
+            content_length = int(content_length_header)
+            if content_length > MAX_REQUEST_BODY_BYTES:
+                raise HTTPException(status_code=413, detail="Request body too large")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
-    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self'; connect-src 'self'",
+    )
+    response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+    if ENABLE_HSTS:
+        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
     return response
 
 
@@ -168,11 +211,11 @@ async def add_security_headers(request: Request, call_next: Any) -> Response:
 class DeploymentRequest(BaseModel):
     """Deployment context for analysis."""
 
-    deployment_id: str
-    service_name: str
-    environment: str
-    version: str
-    changes: list[DeploymentChange]
+    deployment_id: str = Field(min_length=3, max_length=128)
+    service_name: str = Field(min_length=2, max_length=128)
+    environment: str = Field(min_length=2, max_length=64)
+    version: str = Field(min_length=1, max_length=64)
+    changes: list[DeploymentChange] = Field(default_factory=list, max_length=200)
 
 
 class HealthResponse(BaseModel):
@@ -231,16 +274,16 @@ class EvaluationResponse(BaseModel):
 class DeploymentResultRequest(BaseModel):
     """Request model for recording a deployment outcome."""
 
-    deployment_id: str
-    actual_error_rate_percent: float
-    actual_latency_change_percent: float
+    deployment_id: str = Field(min_length=3, max_length=128)
+    actual_error_rate_percent: float = Field(ge=0, le=100)
+    actual_latency_change_percent: float = Field(ge=-100, le=2000)
     rollback_triggered: bool
 
 
 class ApprovalDecisionRequest(BaseModel):
     """Request payload for approving or rejecting a deployment."""
 
-    reason: str = ""
+    reason: str = Field(default="", max_length=500)
 
 
 class PendingDeploymentResponse(BaseModel):
@@ -725,27 +768,34 @@ def _build_request_from_github_webhook(event: str, payload: dict[str, Any]) -> D
 
 
 @app.post("/api/deployments/evaluate")
+@limiter.limit("20/minute")
 async def evaluate_deployment(
-    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+    request: Request,
+    deployment_request: DeploymentRequest,
+    x_api_key: str | None = Header(default=None),
 ) -> EvaluationResponse:
     """Evaluate a deployment, record outcome, and return contract."""
     _require_api_key_if_configured(x_api_key)
-    response, contract = _evaluate_deployment_contract(request, "EVALUATE")
-    _save_evaluation_record(request, response, contract)
+    response, contract = _evaluate_deployment_contract(deployment_request, "EVALUATE")
+    _save_evaluation_record(deployment_request, response, contract)
     return response
 
 
 @app.post("/analyze")
+@limiter.limit("20/minute")
 async def analyze_deployment(
-    request: DeploymentRequest, x_api_key: str | None = Header(default=None)
+    request: Request,
+    deployment_request: DeploymentRequest,
+    x_api_key: str | None = Header(default=None),
 ) -> EvaluationResponse:
     """Backward-compatible alias for /api/deployments/evaluate."""
     _require_api_key_if_configured(x_api_key)
-    response, _ = _evaluate_deployment_contract(request, "ANALYZE")
+    response, _ = _evaluate_deployment_contract(deployment_request, "ANALYZE")
     return response
 
 
 @app.post("/api/webhooks/github")
+@limiter.limit("30/minute")
 async def ingest_github_webhook(
     request: Request,
     x_github_event: str = Header(alias="X-GitHub-Event"),
@@ -776,7 +826,11 @@ async def ingest_github_webhook(
 
 
 @app.get("/api/deployments/pending")
-async def list_pending_deployments(limit: int = 50) -> dict[str, list[PendingDeploymentResponse]]:
+@limiter.limit("120/minute")
+async def list_pending_deployments(
+    request: Request,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict[str, list[PendingDeploymentResponse]]:
     """List deployments waiting for approval."""
     records = approval_store.list_pending(limit=limit)
     return {"deployments": [_approval_record_to_response(record) for record in records]}
@@ -792,7 +846,9 @@ async def get_deployment_status(deployment_id: str) -> ApprovalDecisionResponse:
 
 
 @app.post("/api/deployments/{deployment_id}/approve")
+@limiter.limit("20/minute")
 async def approve_deployment(
+    request: Request,
     deployment_id: str,
     decision: ApprovalDecisionRequest,
     x_api_key: str | None = Header(default=None),
@@ -806,7 +862,9 @@ async def approve_deployment(
 
 
 @app.post("/api/deployments/{deployment_id}/reject")
+@limiter.limit("20/minute")
 async def reject_deployment(
+    request: Request,
     deployment_id: str,
     decision: ApprovalDecisionRequest,
     x_api_key: str | None = Header(default=None),
@@ -881,7 +939,11 @@ async def get_latest_risk() -> dict[str, Any]:
 
 
 @app.get("/api/dashboard/history")
-async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
+@limiter.limit("60/minute")
+async def get_deployment_history(
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=200),
+) -> dict[str, Any]:
     """Get recent deployment history from local learning data and Azure telemetry."""
     if not agent:
         raise HTTPException(status_code=503, detail="Agent not initialized")
@@ -922,8 +984,11 @@ async def get_deployment_history(limit: int = 20) -> dict[str, Any]:
 
 
 @app.post("/api/deployments/record-result")
+@limiter.limit("30/minute")
 async def record_deployment_result(
-    result: DeploymentResultRequest, x_api_key: str | None = Header(default=None)
+    request: Request,
+    result: DeploymentResultRequest,
+    x_api_key: str | None = Header(default=None),
 ) -> dict[str, Any]:
     """Record the actual outcome of a deployment for learning.
 
@@ -1035,6 +1100,13 @@ async def risk_monitor_loop() -> None:
 @app.websocket("/ws/risk")
 async def websocket_risk(websocket: WebSocket) -> None:
     """WebSocket endpoint for streaming real-time risk updates."""
+    configured_key = os.getenv("API_AUTH_KEY", "").strip()
+    if configured_key:
+        provided_key = websocket.query_params.get("api_key", "")
+        if not provided_key or not hmac.compare_digest(provided_key, configured_key):
+            await websocket.close(code=1008)
+            return
+
     await websocket.accept()
     logger.info("WebSocket client connected to /ws/risk")
 
