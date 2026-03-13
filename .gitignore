@@ -2,6 +2,7 @@
 .env.local
 .env.*.local
 __pycache__
+__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -45,3 +46,5 @@ env/
 contract-*.json
 *.tmp
 deployment.json
+.azurecli/
+*.db-journal
