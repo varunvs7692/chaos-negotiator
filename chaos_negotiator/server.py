@@ -554,6 +554,41 @@ def _build_deployment_context(request: DeploymentRequest) -> DeploymentContext:
     )
 
 
+def _derive_history_kpis(
+    outcomes: list[Any], approval_records: list[dict[str, Any]], live_deployments: list[dict[str, Any]]
+) -> dict[str, int | None]:
+    """Compute dashboard KPI values from the best available history source."""
+    tracked_total = max(len(outcomes), len(approval_records), len(live_deployments))
+
+    if outcomes:
+        rollback_count = sum(1 for outcome in outcomes if outcome.rollback_triggered)
+        success_rate = round(((len(outcomes) - rollback_count) / len(outcomes)) * 100)
+        return {"tracked_total": tracked_total, "success_rate": success_rate}
+
+    live_statuses = [
+        str(deployment.get("status", "")).strip().lower()
+        for deployment in live_deployments
+        if deployment.get("status")
+    ]
+    if live_statuses:
+        successful_statuses = {"success", "succeeded", "completed", "healthy"}
+        success_count = sum(1 for status in live_statuses if status in successful_statuses)
+        success_rate = round((success_count / len(live_statuses)) * 100)
+        return {"tracked_total": tracked_total, "success_rate": success_rate}
+
+    finalized_approvals = [
+        str(record.get("approval_status", "")).strip().lower()
+        for record in approval_records
+        if str(record.get("approval_status", "")).strip().lower() in {"approved", "rejected"}
+    ]
+    if finalized_approvals:
+        success_count = sum(1 for status in finalized_approvals if status == "approved")
+        success_rate = round((success_count / len(finalized_approvals)) * 100)
+        return {"tracked_total": tracked_total, "success_rate": success_rate}
+
+    return {"tracked_total": tracked_total, "success_rate": None}
+
+
 def _build_canary_strategy(context: DeploymentContext) -> CanaryStrategyResponse:
     """Generate a JSON-safe canary strategy for API responses."""
     if not agent:
@@ -1073,6 +1108,7 @@ async def get_deployment_history(
 
     try:
         outcomes = agent.history_store.recent(limit)
+        approval_records = approval_store.list_recent(limit)
         latest_record = _get_latest_dashboard_record()
         service_name = (
             latest_record["service_name"]
@@ -1082,9 +1118,12 @@ async def get_deployment_history(
         live_deployments = await telemetry_client.get_deployment_history(
             service_name, limit=min(limit, 10)
         )
+        kpis = _derive_history_kpis(outcomes, approval_records, live_deployments)
         logger.info(f"[HISTORY] Returning {len(outcomes)} deployment outcomes.")
         return {
             "total": len(outcomes),
+            "tracked_total": kpis["tracked_total"],
+            "success_rate": kpis["success_rate"],
             "outcomes": [
                 {
                     "deployment_id": o.deployment_id,
@@ -1097,6 +1136,14 @@ async def get_deployment_history(
                     "timestamp": o.timestamp.isoformat(),
                 }
                 for o in outcomes
+            ],
+            "approval_records": [
+                {
+                    "deployment_id": record["deployment_id"],
+                    "approval_status": record["approval_status"],
+                    "updated_at": record["updated_at"],
+                }
+                for record in approval_records
             ],
             "live_deployments": live_deployments,
             "service_name": service_name,

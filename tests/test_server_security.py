@@ -278,7 +278,7 @@ def test_dashboard_endpoints_and_docs_return_json() -> None:
 
     assert history_response.status_code == 200
     history_data = history_response.json()
-    assert {"total", "outcomes"} <= set(history_data.keys())
+    assert {"total", "tracked_total", "success_rate", "outcomes"} <= set(history_data.keys())
     assert isinstance(history_data["outcomes"], list)
 
     assert canary_response.status_code == 200
@@ -440,6 +440,40 @@ def test_dashboard_canary_prefers_latest_record(monkeypatch: pytest.MonkeyPatch)
     assert data["deployment_id"] == "deploy-shared-001"
     assert data["risk_score"] == 42.5
     assert data["stages"][0]["name"] == "light"
+
+
+def test_dashboard_history_kpis_fall_back_to_approval_records() -> None:
+    """Dashboard history should report tracked deployments from approvals when outcomes are empty."""
+
+    data = server._derive_history_kpis(
+        [],
+        [
+            {"deployment_id": "deploy-001", "approval_status": "approved"},
+            {"deployment_id": "deploy-002", "approval_status": "rejected"},
+            {"deployment_id": "deploy-003", "approval_status": "pending"},
+        ],
+        [],
+    )
+
+    assert data["tracked_total"] == 3
+    assert data["success_rate"] == 50
+
+
+def test_dashboard_history_kpis_prefer_live_deployment_statuses() -> None:
+    """Dashboard history should derive success rate from live deployment statuses when available."""
+
+    data = server._derive_history_kpis(
+        [],
+        [],
+        [
+            {"deployment_id": "deploy-101", "status": "Succeeded"},
+            {"deployment_id": "deploy-102", "status": "Failed"},
+            {"deployment_id": "deploy-103", "status": "Completed"},
+        ],
+    )
+
+    assert data["tracked_total"] == 3
+    assert data["success_rate"] == 67
 
 
 def test_risk_websocket_streams_json_payload() -> None:

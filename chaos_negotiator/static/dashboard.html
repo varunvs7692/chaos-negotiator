@@ -489,11 +489,13 @@
           }, [updateRiskCard]);
 
           const historyOutcomes = historyData?.outcomes || [];
-          const totalDeployments = historyData?.total ?? historyOutcomes.length;
+          const totalDeployments = historyData?.tracked_total ?? historyData?.total ?? historyOutcomes.length;
           const rollbackCount = historyOutcomes.filter((outcome) => outcome.rollback_triggered).length;
-          const successRate = totalDeployments > 0
-            ? Math.round(((totalDeployments - rollbackCount) / totalDeployments) * 100)
-            : null;
+          const successRate = historyData?.success_rate ?? (
+            historyOutcomes.length > 0
+              ? Math.round(((historyOutcomes.length - rollbackCount) / historyOutcomes.length) * 100)
+              : null
+          );
           const canaryStageCount = canaryData?.stages?.length || 0;
           const headlineRisk = riskData?.risk_level ? String(riskData.risk_level).toUpperCase() : 'PENDING';
 
