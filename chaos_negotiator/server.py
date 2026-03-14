@@ -782,7 +782,20 @@ async def _build_live_risk_payload() -> dict[str, Any]:
     telemetry_status = "live" if telemetry.get("available", False) else "degraded"
     telemetry_message = str(telemetry.get("message", ""))
 
-    if context is not None:
+    if latest_record is not None:
+        risk_payload = {
+            "risk_score": float(latest_record["risk_score"]),
+            "risk_level": str(latest_record["risk_level"]),
+            "confidence_percent": float(latest_record["confidence_percent"]),
+            "identified_factors": [],
+            "predicted_error_rate_increase": 0.0,
+            "predicted_latency_increase": 0.0,
+            "deployment_id": str(latest_record["deployment_id"]),
+            "service_name": str(latest_record["service_name"]),
+            "environment": str(latest_record["environment"]),
+            "version": str(latest_record["version"]),
+        }
+    elif context is not None:
         assessment = agent.risk_predictor.predict(context)
         risk_payload = {
             "risk_score": assessment.risk_score,
@@ -795,19 +808,6 @@ async def _build_live_risk_payload() -> dict[str, Any]:
             "service_name": context.service_name,
             "environment": context.environment,
             "version": context.version,
-        }
-    elif latest_record is not None:
-        risk_payload = {
-            "risk_score": float(latest_record["risk_score"]),
-            "risk_level": str(latest_record["risk_level"]),
-            "confidence_percent": float(latest_record["confidence_percent"]),
-            "identified_factors": [],
-            "predicted_error_rate_increase": 0.0,
-            "predicted_latency_increase": 0.0,
-            "deployment_id": str(latest_record["deployment_id"]),
-            "service_name": str(latest_record["service_name"]),
-            "environment": str(latest_record["environment"]),
-            "version": str(latest_record["version"]),
         }
     else:
         risk_payload = {
@@ -1170,10 +1170,10 @@ async def get_canary_strategy() -> dict[str, Any]:
 
     try:
         context, latest_record, telemetry = await _build_live_dashboard_context()
-        if context is not None:
-            payload = _build_canary_strategy(context).model_dump()
-        elif latest_record is not None:
+        if latest_record is not None:
             payload = dict(latest_record["canary_strategy"])
+        elif context is not None:
+            payload = _build_canary_strategy(context).model_dump()
         else:
             raise HTTPException(status_code=404, detail="No live deployment context available")
 

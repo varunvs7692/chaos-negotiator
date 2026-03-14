@@ -370,6 +370,71 @@ def test_dashboard_ignores_smoke_records(monkeypatch: pytest.MonkeyPatch) -> Non
     assert latest_record["deployment_id"] == "deploy-real-001"
 
 
+def test_live_risk_payload_prefers_latest_record(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dashboard risk payload should prefer the persisted evaluation over recomputation."""
+
+    async def fake_build_context() -> tuple[object, dict[str, object], dict[str, object]]:
+        return (
+            object(),
+            {
+                "deployment_id": "deploy-shared-001",
+                "service_name": "chaos-negotiator",
+                "environment": "production",
+                "version": "v1.2.3",
+                "risk_score": 42.5,
+                "risk_level": "medium",
+                "confidence_percent": 77.0,
+            },
+            {
+                "available": True,
+                "source": "azure_monitor",
+                "message": "ok",
+                "error_rate_percent": 0.2,
+                "p95_latency_ms": 123.0,
+                "p99_latency_ms": 456.0,
+                "qps": 10.0,
+            },
+        )
+
+    monkeypatch.setattr(server, "_build_live_dashboard_context", fake_build_context)
+
+    risk_payload = asyncio.run(server._build_live_risk_payload())
+
+    assert risk_payload["deployment_id"] == "deploy-shared-001"
+    assert risk_payload["risk_score"] == 42.5
+    assert risk_payload["risk_level"] == "medium"
+    assert risk_payload["confidence_percent"] == 77.0
+    assert risk_payload["telemetry_source"] == "azure_monitor"
+
+
+def test_dashboard_canary_prefers_latest_record(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dashboard canary endpoint should prefer the persisted strategy over recomputation."""
+
+    async def fake_build_context() -> tuple[object, dict[str, object], dict[str, object]]:
+        return (
+            object(),
+            {
+                "canary_strategy": {
+                    "deployment_id": "deploy-shared-001",
+                    "risk_score": 42.5,
+                    "stages": [{"stage_number": 1, "traffic_percent": 10.0, "duration_seconds": 300, "name": "light"}],
+                }
+            },
+            {"available": False, "source": "azure_monitor_no_data"},
+        )
+
+    monkeypatch.setattr(server, "_build_live_dashboard_context", fake_build_context)
+
+    with TestClient(server.app) as client:
+        response = client.get("/api/dashboard/canary")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["deployment_id"] == "deploy-shared-001"
+    assert data["risk_score"] == 42.5
+    assert data["stages"][0]["name"] == "light"
+
+
 def test_risk_websocket_streams_json_payload() -> None:
     """WebSocket risk stream should accept connections and send risk payloads."""
     with TestClient(server.app) as client:
