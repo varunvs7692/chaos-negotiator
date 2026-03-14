@@ -384,9 +384,13 @@ async def custom_swagger_docs() -> Response:
             "syntaxHighlight.theme": "monokai",
         },
     )
-    themed_html = bytes(swagger_response.body).decode("utf-8").replace(
-        "</head>",
-        '<link rel="stylesheet" href="/static/docs-custom.css"></head>',
+    themed_html = (
+        bytes(swagger_response.body)
+        .decode("utf-8")
+        .replace(
+            "</head>",
+            '<link rel="stylesheet" href="/static/docs-custom.css"></head>',
+        )
     )
     return Response(content=themed_html, media_type="text/html")
 
