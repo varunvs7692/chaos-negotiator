@@ -409,11 +409,11 @@ async def swagger_ui_redirect() -> Response:
 
 @app.get("/", response_model=None)
 async def root() -> FileResponse | dict[str, str]:
-    """Serve the primary home/input UI at the root URL."""
-    if FRONTEND_INDEX_PATH.exists():
-        return FileResponse(str(FRONTEND_INDEX_PATH))
+    """Serve the primary dashboard UI at the root URL."""
     if DASHBOARD_PATH.exists():
         return FileResponse(str(DASHBOARD_PATH))
+    if FRONTEND_INDEX_PATH.exists():
+        return FileResponse(str(FRONTEND_INDEX_PATH))
     return {"message": "Chaos Negotiator AI Agent", "docs": "/docs", "status": "running"}
 
 
