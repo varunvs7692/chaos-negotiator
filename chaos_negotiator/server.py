@@ -311,6 +311,20 @@ def _seed_demo_history_if_empty(agent: Any) -> None:
         logger.warning("Could not seed demo history: %s", exc)
 
 
+def _is_demo_history_seed_enabled() -> bool:
+    """Return whether demo history seeding should run on startup.
+
+    Disabled by default so production dashboards prioritize real events.
+    Set CN_SEED_HISTORY_ON_EMPTY=true to opt in.
+    """
+    return os.getenv("CN_SEED_HISTORY_ON_EMPTY", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown logic."""
@@ -327,8 +341,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if agent:
         await update_risk_state()
-        # Seed demo history on first start so KPI cards show real data
-        _seed_demo_history_if_empty(agent)
+        if _is_demo_history_seed_enabled():
+            _seed_demo_history_if_empty(agent)
+        else:
+            logger.info(
+                "CN_SEED_HISTORY_ON_EMPTY is disabled; dashboard history uses real recorded/live events."
+            )
 
     # Start background risk monitoring task
     logger.info("Starting background risk monitoring task...")
@@ -770,6 +788,117 @@ def _derive_history_kpis(
         return {"tracked_total": tracked_total, "success_rate": success_rate}
 
     return {"tracked_total": tracked_total, "success_rate": None}
+
+
+def _normalize_history_row_timestamp(raw_timestamp: Any) -> str:
+    """Normalize timestamp values from stores/telemetry into ISO strings."""
+    if isinstance(raw_timestamp, datetime):
+        return raw_timestamp.isoformat()
+    if isinstance(raw_timestamp, str) and raw_timestamp.strip():
+        return raw_timestamp
+    return datetime.utcnow().isoformat()
+
+
+def _parse_history_row_timestamp(raw_timestamp: Any) -> datetime:
+    """Parse best-effort timestamps for sorting history rows."""
+    if isinstance(raw_timestamp, datetime):
+        return raw_timestamp
+    if isinstance(raw_timestamp, str) and raw_timestamp.strip():
+        try:
+            return datetime.fromisoformat(raw_timestamp.replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.min
+    return datetime.min
+
+
+def _compose_dashboard_history_rows(
+    outcomes: list[Any],
+    approval_records: list[dict[str, Any]],
+    live_deployments: list[dict[str, Any]],
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Build the history table rows from best available real deployment signals."""
+    rows: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    for outcome in outcomes:
+        deployment_id = str(getattr(outcome, "deployment_id", "")).strip()
+        if not deployment_id or deployment_id in seen_ids:
+            continue
+        seen_ids.add(deployment_id)
+        rows.append(
+            {
+                "deployment_id": deployment_id,
+                "heuristic_score": float(getattr(outcome, "heuristic_score", 0.0)),
+                "ml_score": float(getattr(outcome, "ml_score", 0.0)),
+                "final_score": float(getattr(outcome, "final_score", 0.0)),
+                "actual_error_rate": float(getattr(outcome, "actual_error_rate_percent", 0.0)),
+                "actual_latency_change": float(
+                    getattr(outcome, "actual_latency_change_percent", 0.0)
+                ),
+                "rollback_triggered": bool(getattr(outcome, "rollback_triggered", False)),
+                "timestamp": _normalize_history_row_timestamp(
+                    getattr(outcome, "timestamp", datetime.utcnow())
+                ),
+            }
+        )
+
+    approval_by_id = {
+        str(record.get("deployment_id", "")).strip(): record
+        for record in approval_records
+        if str(record.get("deployment_id", "")).strip()
+    }
+
+    failed_statuses = {"failed", "error", "rollback", "rolled_back", "rolledback", "unhealthy"}
+    for deployment in live_deployments:
+        deployment_id = str(deployment.get("deployment_id", "")).strip()
+        if not deployment_id or deployment_id in seen_ids:
+            continue
+        seen_ids.add(deployment_id)
+
+        status = str(deployment.get("status", "")).strip().lower()
+        matched_approval = approval_by_id.get(deployment_id, {})
+        risk_score = float(matched_approval.get("risk_score", 0.0) or 0.0)
+        confidence_percent = float(matched_approval.get("confidence_percent", 0.0) or 0.0)
+        rows.append(
+            {
+                "deployment_id": deployment_id,
+                "heuristic_score": risk_score,
+                "ml_score": confidence_percent / 100.0,
+                "final_score": risk_score,
+                "actual_error_rate": 0.0,
+                "actual_latency_change": 0.0,
+                "rollback_triggered": status in failed_statuses,
+                "timestamp": _normalize_history_row_timestamp(deployment.get("timestamp")),
+            }
+        )
+
+    for record in approval_records:
+        deployment_id = str(record.get("deployment_id", "")).strip()
+        if not deployment_id or deployment_id in seen_ids:
+            continue
+        seen_ids.add(deployment_id)
+
+        status = str(record.get("approval_status", "")).strip().lower()
+        risk_score = float(record.get("risk_score", 0.0) or 0.0)
+        confidence_percent = float(record.get("confidence_percent", 0.0) or 0.0)
+        rows.append(
+            {
+                "deployment_id": deployment_id,
+                "heuristic_score": risk_score,
+                "ml_score": confidence_percent / 100.0,
+                "final_score": risk_score,
+                "actual_error_rate": 0.0,
+                "actual_latency_change": 0.0,
+                "rollback_triggered": status == "rejected",
+                "timestamp": _normalize_history_row_timestamp(
+                    record.get("updated_at") or record.get("created_at")
+                ),
+            }
+        )
+
+    rows.sort(key=lambda row: _parse_history_row_timestamp(row.get("timestamp")), reverse=True)
+    return rows[:limit]
 
 
 def _build_canary_strategy(context: DeploymentContext) -> CanaryStrategyResponse:
@@ -1301,25 +1430,31 @@ async def get_deployment_history(
         live_deployments = await telemetry_client.get_deployment_history(
             service_name, limit=min(limit, 10)
         )
+        dashboard_outcomes = _compose_dashboard_history_rows(
+            outcomes,
+            approval_records,
+            live_deployments,
+            limit,
+        )
         kpis = _derive_history_kpis(outcomes, approval_records, live_deployments)
-        logger.info(f"[HISTORY] Returning {len(outcomes)} deployment outcomes.")
+        if kpis["success_rate"] is None and dashboard_outcomes:
+            rollback_count = sum(1 for row in dashboard_outcomes if row["rollback_triggered"])
+            kpis["success_rate"] = round(
+                ((len(dashboard_outcomes) - rollback_count) / len(dashboard_outcomes)) * 100
+            )
+        kpis["tracked_total"] = max(int(kpis["tracked_total"] or 0), len(dashboard_outcomes))
+        logger.info(
+            "[HISTORY] Returning %d rows (%d recorded outcomes, %d approvals, %d live deployments).",
+            len(dashboard_outcomes),
+            len(outcomes),
+            len(approval_records),
+            len(live_deployments),
+        )
         return {
-            "total": len(outcomes),
+            "total": len(dashboard_outcomes),
             "tracked_total": kpis["tracked_total"],
             "success_rate": kpis["success_rate"],
-            "outcomes": [
-                {
-                    "deployment_id": o.deployment_id,
-                    "heuristic_score": o.heuristic_score,
-                    "ml_score": o.ml_score,
-                    "final_score": o.final_score,
-                    "actual_error_rate": o.actual_error_rate_percent,
-                    "actual_latency_change": o.actual_latency_change_percent,
-                    "rollback_triggered": o.rollback_triggered,
-                    "timestamp": o.timestamp.isoformat(),
-                }
-                for o in outcomes
-            ],
+            "outcomes": dashboard_outcomes,
             "approval_records": [
                 {
                     "deployment_id": record["deployment_id"],
