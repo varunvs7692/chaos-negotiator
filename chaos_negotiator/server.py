@@ -51,9 +51,15 @@ ALLOWED_ORIGINS = [
     for origin in os.getenv("CORS_ALLOW_ORIGINS", ",".join(DEFAULT_ALLOWED_ORIGINS)).split(",")
     if origin.strip()
 ]
+DEFAULT_ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "testserver",
+    "*.azurecontainerapps.io",
+]
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
+    for host in os.getenv("ALLOWED_HOSTS", ",".join(DEFAULT_ALLOWED_HOSTS)).split(",")
     if host.strip()
 ]
 MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", "1048576"))
