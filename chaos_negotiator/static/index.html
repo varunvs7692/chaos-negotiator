@@ -6,30 +6,31 @@
   <title>Chaos Negotiator</title>
   <style>
     :root {
-      color-scheme: dark;
-      --bg: #050913;
-      --bg-soft: #0e1630;
-      --panel: #111b36;
-      --panel-soft: #17264a;
-      --text: #eef2ff;
-      --muted: #a8b5e7;
-      --line: #2e406f;
-      --brand: #6c88ff;
-      --brand-hover: #7d97ff;
-      --ok: #27cf88;
-      --err: #ff8484;
-      --warn: #ffc46f;
+      color-scheme: light;
+      --bg: #f3f7ff;
+      --bg-soft: #eef4ff;
+      --panel: #ffffff;
+      --panel-soft: #f8fbff;
+      --text: #14233f;
+      --muted: #5f6f8f;
+      --line: #d7e4fb;
+      --brand: #0b78c9;
+      --brand-hover: #0a67ac;
+      --ok: #1aae70;
+      --err: #d04a4a;
+      --warn: #d18b14;
     }
 
     * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      font-family: Inter, Segoe UI, Arial, sans-serif;
+      font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at 8% 0%, #1c2a5a 0%, transparent 32%),
-        radial-gradient(circle at 100% 100%, #132248 0%, transparent 42%),
+        radial-gradient(circle at 10% -10%, #b8dcff 0%, transparent 34%),
+        radial-gradient(circle at 100% 0%, #b6f2f2 0%, transparent 33%),
+        radial-gradient(circle at 100% 100%, #d8e4ff 0%, transparent 40%),
         var(--bg);
       min-height: 100vh;
     }
@@ -40,15 +41,93 @@
       padding: 28px 18px 36px;
     }
 
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .live-ribbon {
+      width: 100%;
+      margin: 0 0 12px;
+      border: 1px solid #caa24e;
+      background: linear-gradient(90deg, #fff3d8 0%, #ffe7ad 100%);
+      color: #6a4300;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      box-shadow: 0 8px 18px rgba(165, 112, 0, 0.12);
+    }
+
+    .nav-links {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: #1d3f6e;
+      border: 1px solid #c9dbf7;
+      background: rgba(255, 255, 255, 0.82);
+      padding: 7px 10px;
+      border-radius: 9px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background-color .15s ease, border-color .15s ease, transform .08s ease;
+    }
+
+    .nav-links a:hover {
+      background: #edf5ff;
+      border-color: #9ebbe8;
+    }
+
+    .nav-links a:active {
+      transform: translateY(1px);
+    }
+
+    .health-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border: 1px solid #b8cef1;
+      background: rgba(255, 255, 255, 0.86);
+      color: #255589;
+      border-radius: 999px;
+      padding: 7px 11px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 0 0 rgba(255, 196, 111, 0.42);
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(255, 196, 111, 0.42); }
+      70% { box-shadow: 0 0 0 8px rgba(255, 196, 111, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(255, 196, 111, 0); }
+    }
+
     .hero {
       background:
-        radial-gradient(circle at 80% 10%, rgba(150, 180, 255, 0.32), transparent 36%),
-        linear-gradient(135deg, #111c3d 0%, #1c2d59 52%, #2d4382 100%);
-      border: 1px solid #32467f;
+        radial-gradient(circle at 80% 10%, rgba(0, 166, 201, 0.22), transparent 36%),
+        linear-gradient(135deg, #ffffff 0%, #f2f8ff 50%, #ecf7ff 100%);
+      border: 1px solid #cbdcf7;
       border-radius: 20px;
       padding: 22px 22px 20px;
       margin-bottom: 16px;
-      box-shadow: 0 20px 35px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 18px 36px rgba(41, 87, 148, 0.14);
     }
 
     .hero h1 {
@@ -60,7 +139,7 @@
 
     .hero p {
       margin: 10px 0 0;
-      color: #d2dcff;
+      color: #456286;
       max-width: 840px;
       line-height: 1.5;
     }
@@ -74,12 +153,50 @@
 
     .chip {
       font-size: 12px;
-      color: #d3deff;
-      background: rgba(11, 20, 42, 0.64);
-      border: 1px solid #3a518f;
+      color: #185a98;
+      background: #eaf4ff;
+      border: 1px solid #bcd6f4;
       padding: 6px 10px;
       border-radius: 999px;
       letter-spacing: 0.2px;
+    }
+
+    .quick-links {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .quick-link {
+      text-decoration: none;
+      border: 1px solid #c6daf7;
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: linear-gradient(180deg, #ffffff 0%, #f4f9ff 100%);
+      color: #154c81;
+      box-shadow: 0 8px 18px rgba(31, 88, 149, 0.1);
+      transition: transform .14s ease, box-shadow .16s ease, border-color .16s ease;
+    }
+
+    .quick-link:hover {
+      transform: translateY(-2px);
+      border-color: #97bce8;
+      box-shadow: 0 12px 20px rgba(31, 88, 149, 0.16);
+    }
+
+    .quick-link .title {
+      display: block;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 3px;
+      letter-spacing: 0.2px;
+    }
+
+    .quick-link .desc {
+      font-size: 12px;
+      color: #51719a;
+      line-height: 1.35;
     }
 
     .layout {
@@ -90,13 +207,20 @@
     }
 
     .card {
-      background: rgba(15, 24, 48, 0.9);
+      background: rgba(255, 255, 255, 0.9);
       border: 1px solid var(--line);
       border-radius: 16px;
       padding: 18px;
       -webkit-backdrop-filter: blur(5px);
       backdrop-filter: blur(5px);
-      box-shadow: 0 14px 28px rgba(1, 8, 20, 0.38);
+      box-shadow: 0 14px 30px rgba(42, 83, 138, 0.12);
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: #9fc0ec;
+      box-shadow: 0 20px 34px rgba(42, 83, 138, 0.16);
     }
 
     .card h2 {
@@ -118,14 +242,14 @@
     }
 
     .summary-item {
-      border: 1px solid #324676;
-      background: linear-gradient(180deg, #121d3a 0%, #0f1831 100%);
+      border: 1px solid #d0e1fa;
+      background: linear-gradient(180deg, #f8fbff 0%, #f2f8ff 100%);
       border-radius: 12px;
       padding: 10px;
     }
 
     .summary-item .k {
-      color: #9fb2e6;
+      color: #58739a;
       font-size: 11px;
       text-transform: uppercase;
       letter-spacing: .45px;
@@ -135,7 +259,7 @@
       margin-top: 6px;
       font-size: 18px;
       font-weight: 700;
-      color: #eff4ff;
+      color: #123663;
     }
 
     .grid {
@@ -156,7 +280,7 @@
 
     label {
       font-size: 12px;
-      color: #c6d3ff;
+      color: #4e6487;
       letter-spacing: 0.2px;
     }
 
@@ -164,7 +288,7 @@
       width: 100%;
       background: var(--bg-soft);
       color: var(--text);
-      border: 1px solid #33487e;
+      border: 1px solid #c6d8f7;
       border-radius: 10px;
       padding: 10px 11px;
       font: inherit;
@@ -174,7 +298,7 @@
     input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--brand);
-      box-shadow: 0 0 0 3px rgba(93, 124, 255, 0.2);
+      box-shadow: 0 0 0 3px rgba(11, 120, 201, 0.2);
     }
 
     textarea {
@@ -196,7 +320,7 @@
       padding: 10px 13px;
       font-weight: 600;
       color: #fff;
-      background: #2d3f73;
+      background: #2b5f93;
       cursor: pointer;
       transition: transform .04s ease, background-color .15s ease, box-shadow .15s ease;
     }
@@ -208,11 +332,11 @@
     }
 
     button:active { transform: translateY(1px); }
-    button:hover { background: #344b89; }
+    button:hover { background: #245482; }
 
     button.primary {
       background: var(--brand);
-      box-shadow: 0 8px 22px rgba(88, 118, 255, 0.35);
+      box-shadow: 0 8px 22px rgba(11, 120, 201, 0.28);
     }
 
     button.primary:hover {
@@ -221,12 +345,12 @@
 
     .status-bar {
       margin-top: 12px;
-      border: 1px solid #3a4c84;
-      background: #101a35;
+      border: 1px solid #c1d6f3;
+      background: #f3f8ff;
       border-radius: 10px;
       padding: 9px 11px;
       font-size: 13px;
-      color: #c7d4ff;
+      color: #4b6590;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -251,8 +375,8 @@
     }
 
     .result-wrap {
-      background: #0b1228;
-      border: 1px solid #2a3a68;
+      background: #f8fbff;
+      border: 1px solid #cadcf7;
       border-radius: 12px;
       overflow: hidden;
       min-height: 430px;
@@ -265,10 +389,10 @@
       justify-content: space-between;
       align-items: center;
       padding: 10px 12px;
-      border-bottom: 1px solid #283960;
-      background: #111a35;
+      border-bottom: 1px solid #cfe0fa;
+      background: #eef5ff;
       font-size: 12px;
-      color: #b8c7f7;
+      color: #4e688f;
     }
 
     .result-tools {
@@ -278,9 +402,9 @@
     }
 
     .ghost-btn {
-      border: 1px solid #41578e;
-      background: #1a2850;
-      color: #d7e2ff;
+      border: 1px solid #9ec0eb;
+      background: #dff0ff;
+      color: #1c5389;
       border-radius: 8px;
       font-size: 11px;
       padding: 5px 8px;
@@ -294,19 +418,51 @@
       overflow: auto;
       font-size: 12px;
       line-height: 1.45;
-      color: #dfe8ff;
+      color: #25466f;
       flex: 1;
     }
 
     .aside-note {
       margin-top: 10px;
       font-size: 12px;
-      color: #9fb0e4;
+      color: #5d7397;
       line-height: 1.45;
+    }
+
+    .kbd {
+      display: inline-block;
+      border: 1px solid #506799;
+      border-bottom-width: 2px;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: #dbe7ff;
+      background: #17284d;
+      margin: 0 2px;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(6px);
+      animation: reveal .35s ease forwards;
+    }
+
+    .reveal.delay-1 { animation-delay: .06s; }
+    .reveal.delay-2 { animation-delay: .12s; }
+
+    @keyframes reveal {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     @media (max-width: 820px) {
       .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .quick-links {
         grid-template-columns: 1fr;
       }
 
@@ -326,7 +482,21 @@
 </head>
 <body>
   <main class="wrap">
-    <section class="hero">
+    <div class="live-ribbon">LOCAL BUILD UPDATED: Premium UI theme is active on localhost.</div>
+
+    <section class="topbar reveal">
+      <div class="nav-links">
+        <a href="/docs" target="_blank" rel="noreferrer">Open API Docs</a>
+        <a href="/dashboard" target="_blank" rel="noreferrer">Open Dashboard</a>
+        <a href="/health" target="_blank" rel="noreferrer">Open Health</a>
+      </div>
+      <div class="health-pill" id="healthPill">
+        <span class="pulse" id="healthPulse"></span>
+        <span id="healthText">Checking server health...</span>
+      </div>
+    </section>
+
+    <section class="hero reveal delay-1">
       <h1>Chaos Negotiator</h1>
       <p>
         Evaluate deployment risk, enforce reliability guardrails, and generate a deployment contract
@@ -337,9 +507,23 @@
         <span class="chip">Rollback Validation</span>
         <span class="chip">Contract Guardrails</span>
       </div>
+      <div class="quick-links">
+        <a class="quick-link" href="/dashboard" target="_blank" rel="noreferrer">
+          <span class="title">Live Dashboard</span>
+          <span class="desc">Real-time risk, canary progression, and outcome history in one view.</span>
+        </a>
+        <a class="quick-link" href="/docs" target="_blank" rel="noreferrer">
+          <span class="title">OpenAPI Console</span>
+          <span class="desc">Execute endpoints quickly with interactive request/response inspection.</span>
+        </a>
+        <a class="quick-link" href="/health" target="_blank" rel="noreferrer">
+          <span class="title">Service Health</span>
+          <span class="desc">Verify uptime and backend readiness before running a deployment test.</span>
+        </a>
+      </div>
     </section>
 
-    <section class="layout">
+    <section class="layout reveal delay-2">
       <article class="card main-panel">
         <h2>Deployment Input</h2>
         <p class="hint">Fill in the deployment details and run analysis or quick demo scenarios.</p>
@@ -425,7 +609,7 @@
           </div>
           <pre id="output">{}</pre>
         </div>
-        <p class="aside-note">Tip: Use the demo buttons first, then switch to custom deployment input for your real scenarios.</p>
+        <p class="aside-note">Tip: Use the demo buttons first, then switch to custom deployment input for your real scenarios. Use <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> inside description to run analyze quickly.</p>
       </article>
     </section>
   </main>
@@ -436,6 +620,8 @@
     const outputEl = document.getElementById('output');
     const resultStampEl = document.getElementById('resultStamp');
     const copyJsonBtn = document.getElementById('copyJsonBtn');
+    const healthTextEl = document.getElementById('healthText');
+    const healthPulseEl = document.getElementById('healthPulse');
     const actionButtons = [
       document.getElementById('analyzeBtn'),
       document.getElementById('demoDefault'),
@@ -495,7 +681,8 @@
           body: body ? JSON.stringify(body) : undefined,
         });
 
-        const data = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+        const data = contentType.includes('application/json') ? await res.json() : { raw: await res.text() };
         if (!res.ok) {
           setStatus(`Request failed (${res.status})`, 'err');
           setOutput(data);
@@ -510,6 +697,18 @@
         setOutput({ error: String(err) });
       } finally {
         setLoading(false);
+      }
+    }
+
+    async function refreshHealthPill() {
+      try {
+        const res = await fetch('/health');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        healthTextEl.textContent = 'Server healthy';
+        healthPulseEl.style.background = 'var(--ok)';
+      } catch {
+        healthTextEl.textContent = 'Server unreachable';
+        healthPulseEl.style.background = 'var(--err)';
       }
     }
 
@@ -541,9 +740,17 @@
       callApi('/analyze', 'POST', payload);
     });
 
+    document.getElementById('changeDescription').addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && event.ctrlKey) {
+        event.preventDefault();
+        document.getElementById('analyzeBtn').click();
+      }
+    });
+
     document.getElementById('demoDefault').addEventListener('click', () => callApi('/demo/default'));
     document.getElementById('demoHigh').addEventListener('click', () => callApi('/demo/high-risk'));
     document.getElementById('demoLow').addEventListener('click', () => callApi('/demo/low-risk'));
+    refreshHealthPill();
   </script>
 </body>
 </html>

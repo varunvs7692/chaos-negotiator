@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chaos Negotiator Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/dashboard.css">
 </head>
 <body>
@@ -361,45 +364,65 @@
           const [loading, setLoading] = React.useState(true);
           const [error, setError] = React.useState(null);
           const [wsConnected, setWsConnected] = React.useState(false);
+          const [lastSync, setLastSync] = React.useState(null);
+          const [refreshing, setRefreshing] = React.useState(false);
+
+          const dashboardApiKey = React.useMemo(() => {
+            const params = new URLSearchParams(window.location.search);
+            const keyFromQuery = params.get('api_key');
+            if (keyFromQuery) {
+              window.localStorage.setItem('chaos_dashboard_api_key', keyFromQuery);
+              return keyFromQuery;
+            }
+            return window.localStorage.getItem('chaos_dashboard_api_key') || '';
+          }, []);
 
           const updateRiskCard = React.useCallback((data) => {
             setRiskData(data);
           }, []);
 
+          const fetchNonRiskData = React.useCallback(async (isManual = false) => {
+            if (isManual) {
+              setRefreshing(true);
+            }
+
+            try {
+              const [historyRes, canaryRes] = await Promise.all([
+                fetch('/api/dashboard/history'),
+                fetch('/api/dashboard/canary'),
+              ]);
+
+              if (!historyRes.ok || !canaryRes.ok) {
+                throw new Error('Failed to fetch dashboard data');
+              }
+
+              const [history, canary] = await Promise.all([
+                historyRes.json(),
+                canaryRes.json(),
+              ]);
+
+              setHistoryData(history);
+              setCanaryData(canary);
+              setLastSync(new Date());
+              setError(null);
+            } catch (err) {
+              setError(err.message);
+              console.error('Dashboard fetch error:', err);
+            } finally {
+              setLoading(false);
+              if (isManual) {
+                setRefreshing(false);
+              }
+            }
+          }, []);
+
           // Fetch non-risk data (history and canary) on mount
           React.useEffect(() => {
-            const fetchNonRiskData = async () => {
-              try {
-                const [historyRes, canaryRes] = await Promise.all([
-                  fetch('/api/dashboard/history'),
-                  fetch('/api/dashboard/canary'),
-                ]);
-
-                if (!historyRes.ok || !canaryRes.ok) {
-                  throw new Error('Failed to fetch dashboard data');
-                }
-
-                const [history, canary] = await Promise.all([
-                  historyRes.json(),
-                  canaryRes.json(),
-                ]);
-
-                setHistoryData(history);
-                setCanaryData(canary);
-                setError(null);
-              } catch (err) {
-                setError(err.message);
-                console.error('Dashboard fetch error:', err);
-              } finally {
-                setLoading(false);
-              }
-            };
-
             fetchNonRiskData();
-            const interval = setInterval(fetchNonRiskData, 30000); // Refresh every 30s
+            const interval = setInterval(() => fetchNonRiskData(false), 30000); // Refresh every 30s
 
             return () => clearInterval(interval);
-          }, []);
+          }, [fetchNonRiskData]);
 
           // WebSocket connection for real-time risk updates
           React.useEffect(() => {
@@ -408,7 +431,8 @@
 
             const connectWebSocket = () => {
               const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-              const wsUrl = `${protocol}//${window.location.host}/ws/risk`;
+              const qs = dashboardApiKey ? `?api_key=${encodeURIComponent(dashboardApiKey)}` : '';
+              const wsUrl = `${protocol}//${window.location.host}/ws/risk${qs}`;
               
               ws = new WebSocket(wsUrl);
 
@@ -432,9 +456,13 @@
                 setError('WebSocket connection error');
               };
 
-              ws.onclose = () => {
+              ws.onclose = (event) => {
                 console.log('WebSocket disconnected');
                 setWsConnected(false);
+                if (event.code === 1008) {
+                  setError('WebSocket auth failed. Open /dashboard?api_key=YOUR_API_AUTH_KEY once to authorize this browser.');
+                  return;
+                }
                 // Attempt to reconnect after 3 seconds
                 reconnectTimeout = setTimeout(connectWebSocket, 3000);
               };
@@ -452,6 +480,15 @@
             };
           }, [updateRiskCard]);
 
+          const historyOutcomes = historyData?.outcomes || [];
+          const totalDeployments = historyData?.total || 0;
+          const rollbackCount = historyOutcomes.filter((outcome) => outcome.rollback_triggered).length;
+          const successRate = totalDeployments > 0
+            ? Math.round(((totalDeployments - rollbackCount) / totalDeployments) * 100)
+            : null;
+          const canaryStageCount = canaryData?.stages?.length || 0;
+          const headlineRisk = riskData?.risk_level ? String(riskData.risk_level).toUpperCase() : 'PENDING';
+
           if (loading && !riskData) {
             return (
               <div className="dashboard-container">
@@ -465,9 +502,28 @@
               <header className="dashboard-header">
                 <h1>🚀 Chaos Negotiator Dashboard</h1>
                 <p>Intelligent Deployment Risk & Reliability Management</p>
-                <div className="connection-status">
-                  <span className={`status-indicator ${wsConnected ? 'connected' : 'disconnected'}`}></span>
-                  <span>{wsConnected ? 'Real-time connected' : 'Connecting...'}</span>
+                <div className="header-actions">
+                  <a href="/" className="header-link">Home</a>
+                  <a href="/docs" className="header-link" target="_blank" rel="noreferrer">API Docs</a>
+                </div>
+                <div className="header-meta-row">
+                  <div className="connection-status">
+                    <span className={`status-indicator ${wsConnected ? 'connected' : 'disconnected'}`}></span>
+                    <span>{wsConnected ? 'Real-time connected' : 'Connecting...'}</span>
+                  </div>
+                  <div className="sync-controls">
+                    <span className="sync-time">
+                      {lastSync ? `Last sync ${lastSync.toLocaleTimeString()}` : 'Waiting for first sync'}
+                    </span>
+                    <button
+                      className="sync-button"
+                      onClick={() => fetchNonRiskData(true)}
+                      disabled={refreshing}
+                      type="button"
+                    >
+                      {refreshing ? 'Refreshing...' : 'Refresh Data'}
+                    </button>
+                  </div>
                 </div>
               </header>
 
@@ -477,7 +533,41 @@
                 </div>
               )}
 
+              <section className="quick-actions-wrap">
+                <a href="/docs" className="quick-action" target="_blank" rel="noreferrer">
+                  <span className="quick-action-title">Open API Docs</span>
+                  <span className="quick-action-desc">Try endpoints and inspect live JSON responses.</span>
+                </a>
+                <a href="/home" className="quick-action" target="_blank" rel="noreferrer">
+                  <span className="quick-action-title">Open Home Console</span>
+                  <span className="quick-action-desc">Run demo scenarios and submit custom deployment payloads.</span>
+                </a>
+                <a href="/health" className="quick-action" target="_blank" rel="noreferrer">
+                  <span className="quick-action-title">Check Service Health</span>
+                  <span className="quick-action-desc">Verify backend status before presenting the demo.</span>
+                </a>
+              </section>
+
               <div className="dashboard-grid">
+                <section className="dashboard-section full-width kpi-strip">
+                  <article className="kpi-card">
+                    <div className="kpi-label">Risk State</div>
+                    <div className="kpi-value">{headlineRisk}</div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-label">Success Rate</div>
+                    <div className="kpi-value">{successRate === null ? '—' : `${successRate}%`}</div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-label">Canary Stages</div>
+                    <div className="kpi-value">{canaryStageCount || '—'}</div>
+                  </article>
+                  <article className="kpi-card">
+                    <div className="kpi-label">Tracked Deployments</div>
+                    <div className="kpi-value">{totalDeployments || '—'}</div>
+                  </article>
+                </section>
+
                 <section className="dashboard-section full-width">
                   <h2>Risk Assessment & Confidence</h2>
                   {riskData && <window.RiskCard data={riskData} />}
