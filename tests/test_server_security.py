@@ -417,7 +417,14 @@ def test_dashboard_canary_prefers_latest_record(monkeypatch: pytest.MonkeyPatch)
                 "canary_strategy": {
                     "deployment_id": "deploy-shared-001",
                     "risk_score": 42.5,
-                    "stages": [{"stage_number": 1, "traffic_percent": 10.0, "duration_seconds": 300, "name": "light"}],
+                    "stages": [
+                        {
+                            "stage_number": 1,
+                            "traffic_percent": 10.0,
+                            "duration_seconds": 300,
+                            "name": "light",
+                        }
+                    ],
                 }
             },
             {"available": False, "source": "azure_monitor_no_data"},
