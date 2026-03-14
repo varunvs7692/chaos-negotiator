@@ -50,7 +50,9 @@ RUN pip install --upgrade pip && \
 COPY chaos_negotiator /app/chaos_negotiator
 COPY LICENSE /app/
 COPY README.md /app/
-COPY --from=frontend-builder /frontend/build /app/chaos_negotiator/static
+# Keep CRA artifacts available for optional static hosting without replacing
+# the curated FastAPI-served pages under chaos_negotiator/static.
+COPY --from=frontend-builder /frontend/build /app/chaos_negotiator/static/frontend-build
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
