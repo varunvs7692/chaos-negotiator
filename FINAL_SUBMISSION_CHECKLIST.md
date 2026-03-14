@@ -11,7 +11,7 @@ Use this before submitting the hackathon entry.
 - [x] At least one hero technology is clearly demonstrated
 - [x] Project description is ready (problem, target users, and why it matters)
 - [x] AI value is clearly explained (what AI does and why it improves outcomes)
-- [ ] Demo video link is ready
+- [x] Demo video link is ready
 - [x] Architecture diagram is ready
 - [x] Participant information is ready (your name, role, and Microsoft Learn username)
 
@@ -24,8 +24,8 @@ Use this before submitting the hackathon entry.
 - [x] Public app URL is included
 - [x] GitHub repo link is included
 - [ ] Demo video is <= 2 minutes
-- [ ] Demo video is uploaded to YouTube or Vimeo with a public or accessible link
-- [ ] Demo video link is included in submission form / project description
+- [x] Demo video is uploaded to YouTube or Vimeo with a public or accessible link
+- [x] Demo video link is included in submission form / project description
 - [ ] Screenshots and architecture visuals are uploaded in the Images/Video section
 - [x] Architecture diagram explicitly shows Foundry/Agent Framework/Azure MCP/GitHub Copilot/Azure services usage
 - [x] Your Microsoft Learn username is included
@@ -127,7 +127,7 @@ Verified now:
 
 Still required before submit:
 - [ ] Record and upload final demo video (<= 2 minutes)
-- [ ] Add public YouTube/Vimeo link to submission form and project description
+- [x] Add public YouTube/Vimeo link to submission form and project description
 - [ ] Upload screenshots and architecture visuals in the platform Images/Video section
 - [ ] Confirm Innovation Studio submission is completed and finalized
 - [x] Add your Microsoft Learn username

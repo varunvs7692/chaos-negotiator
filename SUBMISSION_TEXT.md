@@ -69,7 +69,7 @@ Microsoft technologies used:
 Links:
 - Live app: https://chaos-negotiator.happycoast-63bd2242.eastus.azurecontainerapps.io/
 - Code repository: https://github.com/varunvs7692/chaos-negotiator
-- Demo video: [ADD_YOUTUBE_OR_VIMEO_LINK]
+- Demo video: https://youtu.be/pRWTjbU5-Ug?si=ESbJjHA2Zle_-tH7
 - Architecture diagram: see SUBMISSION_ARCHITECTURE.md in the repository
 
 Participant information:
