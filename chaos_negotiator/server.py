@@ -555,7 +555,9 @@ def _build_deployment_context(request: DeploymentRequest) -> DeploymentContext:
 
 
 def _derive_history_kpis(
-    outcomes: list[Any], approval_records: list[dict[str, Any]], live_deployments: list[dict[str, Any]]
+    outcomes: list[Any],
+    approval_records: list[dict[str, Any]],
+    live_deployments: list[dict[str, Any]],
 ) -> dict[str, int | None]:
     """Compute dashboard KPI values from the best available history source."""
     tracked_total = max(len(outcomes), len(approval_records), len(live_deployments))
