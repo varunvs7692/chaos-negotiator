@@ -652,11 +652,33 @@ def _save_evaluation_record(
 
 
 def _get_latest_dashboard_record() -> dict[str, Any] | None:
-    """Return the most recent evaluated deployment if available."""
-    records = approval_store.list_recent(limit=1)
+    """Return the latest non-smoke evaluated deployment if available."""
+    records = approval_store.list_recent(limit=20)
     if not records:
         return None
-    return records[0]
+
+    for record in records:
+        deployment_id = str(record.get("deployment_id", "")).lower()
+        service_name = str(record.get("service_name", "")).lower()
+        contract = record.get("contract") or {}
+        deployment_context = contract.get("deployment_context") or {}
+        changes = deployment_context.get("changes") or []
+
+        is_smoke_record = deployment_id.startswith("smoke-") or service_name == "smoke-service"
+        if not is_smoke_record and isinstance(changes, list):
+            for change in changes:
+                if not isinstance(change, dict):
+                    continue
+                description = str(change.get("description", "")).strip().lower()
+                risk_tags = {str(tag).lower() for tag in change.get("risk_tags", [])}
+                if description == "ci smoke test" and "test" in risk_tags:
+                    is_smoke_record = True
+                    break
+
+        if not is_smoke_record:
+            return record
+
+    return None
 
 
 def _deserialize_changes(raw_changes: Any) -> list[DeploymentChange]:

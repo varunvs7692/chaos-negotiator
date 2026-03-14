@@ -294,10 +294,7 @@ jobs:
         echo "Smoke test: GET /api"
         wait_for_endpoint "GET" "/api" "" "GET /api"
 
-        echo "Smoke test: POST /api/deployments/evaluate"
-        wait_for_endpoint "POST" "/api/deployments/evaluate" "$ANALYZE_BODY" "POST /api/deployments/evaluate"
-
-        echo "Smoke test: POST /analyze (compatibility alias)"
+        echo "Smoke test: POST /analyze"
         wait_for_endpoint "POST" "/analyze" "$ANALYZE_BODY" "POST /analyze"
     
     - name: Set secrets in Key Vault

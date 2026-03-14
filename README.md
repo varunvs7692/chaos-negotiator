@@ -62,13 +62,13 @@ Analyzes code changes, service dependencies, and SLOs. Generates contracts answe
 - Detects violations and triggers automatic rollback
 - Shows recommended traffic percentage for each stage
 
-### 5. **Agentic Negotiation**
+### 6. **Agentic Negotiation**
 Intelligent dialogue handling deployments:
 - Explains why guardrails matter
 - Suggests mitigations for high-risk changes
 - Enforces non-negotiable safety terms
 
-## �️ Interactive Dashboard
+## 🖥️ Interactive Dashboard
 
 A built-in **React-based dashboard** provides real‑time visibility into the agent's
 risk predictions, canary strategies, deployment history and contract guardrails.
@@ -76,7 +76,7 @@ Open your browser after starting the server (see Quick Start) and navigate to
 `http://localhost:8000` to explore. The code lives under `chaos_negotiator/static`
 and detailed usage notes are available in [DASHBOARD.md](DASHBOARD.md).
 
-## �🚀 Quick Start
+## 🚀 Quick Start
 
 ```bash
 # Clone & install
@@ -320,7 +320,7 @@ tests/                     # Test Suite
 
 ### Optional API Endpoint Protection
 
-Sensitive endpoints (`/analyze`, `/demo/*`) can be protected with an API key.
+Sensitive endpoints (`/api/deployments/evaluate`, `/analyze`, `/demo/*`) can be protected with an API key.
 
 Set locally:
 

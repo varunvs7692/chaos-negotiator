@@ -332,6 +332,44 @@ def test_dashboard_telemetry_prefers_deployed_service_name(
     assert context.service_name == "chaos-negotiator"
 
 
+def test_dashboard_ignores_smoke_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Dashboard selection should skip CI smoke-test evaluations."""
+    monkeypatch.setattr(
+        server.approval_store,
+        "list_recent",
+        lambda limit=20: [
+            {
+                "deployment_id": "smoke-deploy",
+                "service_name": "smoke-service",
+                "environment": "staging",
+                "version": "v0.0.1",
+                "contract": {
+                    "deployment_context": {
+                        "changes": [
+                            {
+                                "description": "CI smoke test",
+                                "risk_tags": ["test"],
+                            }
+                        ]
+                    }
+                },
+            },
+            {
+                "deployment_id": "deploy-real-001",
+                "service_name": "chaos-negotiator",
+                "environment": "production",
+                "version": "v1.0.0",
+                "contract": {"deployment_context": {"service_name": "chaos-negotiator"}},
+            },
+        ],
+    )
+
+    latest_record = server._get_latest_dashboard_record()
+
+    assert latest_record is not None
+    assert latest_record["deployment_id"] == "deploy-real-001"
+
+
 def test_risk_websocket_streams_json_payload() -> None:
     """WebSocket risk stream should accept connections and send risk payloads."""
     with TestClient(server.app) as client:
