@@ -178,7 +178,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-GitHub-Event", "X-Hub-Signature-256"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "X-API-Key",
+        "X-GitHub-Event",
+        "X-Hub-Signature-256",
+    ],
     allow_credentials=False,
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=ALLOWED_HOSTS)
@@ -212,7 +218,11 @@ async def add_security_headers(request: Request, call_next: Any) -> Response:
 
     # Swagger UI and web entrypoints rely on CDN and inline scripts in this project setup.
     relaxed_csp_paths = {"/", "/home", "/index.html"}
-    if request_path.startswith("/docs") or request_path.startswith("/dashboard") or request_path in relaxed_csp_paths:
+    if (
+        request_path.startswith("/docs")
+        or request_path.startswith("/dashboard")
+        or request_path in relaxed_csp_paths
+    ):
         csp_policy = (
             "default-src 'self'; "
             "base-uri 'self'; "
@@ -231,7 +241,9 @@ async def add_security_headers(request: Request, call_next: Any) -> Response:
     response.headers.setdefault("Content-Security-Policy", csp_policy)
     response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
     if ENABLE_HSTS:
-        response.headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+        )
     return response
 
 
