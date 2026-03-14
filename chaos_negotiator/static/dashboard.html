@@ -381,6 +381,10 @@
             setRiskData(data);
           }, []);
 
+          const authHeaders = React.useMemo(() => {
+            return dashboardApiKey ? { 'X-API-Key': dashboardApiKey } : {};
+          }, [dashboardApiKey]);
+
           const fetchNonRiskData = React.useCallback(async (isManual = false) => {
             if (isManual) {
               setRefreshing(true);
@@ -388,8 +392,8 @@
 
             try {
               const [historyRes, canaryRes] = await Promise.all([
-                fetch('/api/dashboard/history'),
-                fetch('/api/dashboard/canary'),
+                fetch('/api/dashboard/history', { headers: authHeaders }),
+                fetch('/api/dashboard/canary', { headers: authHeaders }),
               ]);
 
               if (!historyRes.ok || !canaryRes.ok) {
@@ -414,7 +418,7 @@
                 setRefreshing(false);
               }
             }
-          }, []);
+          }, [authHeaders]);
 
           // Fetch non-risk data (history and canary) on mount
           React.useEffect(() => {
@@ -481,7 +485,7 @@
           }, [updateRiskCard]);
 
           const historyOutcomes = historyData?.outcomes || [];
-          const totalDeployments = historyData?.total || 0;
+          const totalDeployments = historyData?.total ?? historyOutcomes.length;
           const rollbackCount = historyOutcomes.filter((outcome) => outcome.rollback_triggered).length;
           const successRate = totalDeployments > 0
             ? Math.round(((totalDeployments - rollbackCount) / totalDeployments) * 100)
@@ -503,7 +507,7 @@
                 <h1>🚀 Chaos Negotiator Dashboard</h1>
                 <p>Intelligent Deployment Risk & Reliability Management</p>
                 <div className="header-actions">
-                  <a href="/" className="header-link">Home</a>
+                  <a href="/home" className="header-link">Home</a>
                   <a href="/docs" className="header-link" target="_blank" rel="noreferrer">API Docs</a>
                 </div>
                 <div className="header-meta-row">
