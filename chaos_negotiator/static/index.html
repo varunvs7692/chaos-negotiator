@@ -737,7 +737,7 @@
           },
         ],
       };
-      callApi('/analyze', 'POST', payload);
+      callApi('/api/deployments/evaluate', 'POST', payload);
     });
 
     document.getElementById('changeDescription').addEventListener('keydown', (event) => {
