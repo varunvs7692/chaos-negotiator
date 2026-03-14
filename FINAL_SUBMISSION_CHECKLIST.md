@@ -107,9 +107,9 @@ Use this before submitting the hackathon entry.
 
 - [ ] Project is created and submitted on Innovation Studio Hackathon platform
 - [ ] A judge can understand the product in under 30 seconds
-- [ ] A judge can verify the project in under 5 minutes
-- [ ] The deployed app does not show a broken or blank screen
-- [ ] Any fallback mode is documented and intentional
+- [x] A judge can verify the project in under 5 minutes
+- [x] The deployed app does not show a broken or blank screen
+- [x] Any fallback mode is documented and intentional
 - [ ] Submission is finalized before the hackathon deadline
 
 ## Dry-Run Status (2026-03-13)
@@ -126,7 +126,7 @@ Verified now:
 - [x] CI badge indicates passing (`test.yml` badge)
 
 Still required before submit:
-- [ ] Record and upload final demo video (<= 2 minutes)
+- [ ] Confirm final demo video duration is <= 2 minutes
 - [x] Add public YouTube/Vimeo link to submission form and project description
 - [ ] Upload screenshots and architecture visuals in the platform Images/Video section
 - [ ] Confirm Innovation Studio submission is completed and finalized
