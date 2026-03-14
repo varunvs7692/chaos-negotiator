@@ -66,6 +66,13 @@ telemetry_client = AzureMCPClient()
 limiter = Limiter(key_func=get_remote_address, default_limits=["120/minute"])
 
 
+def _rate_limit_handler_for_starlette(request: Request, exc: Exception) -> Response:
+    """Bridge slowapi's specific handler signature to Starlette's generic exception handler type."""
+    if not isinstance(exc, RateLimitExceeded):
+        raise exc
+    return _rate_limit_exceeded_handler(request, exc)
+
+
 class RiskState(TypedDict):
     risk_score: float
     risk_level: str
@@ -171,7 +178,7 @@ app = FastAPI(
     redoc_url=None,
 )
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler_for_starlette)
 
 # allow dashboard page or external tools to call our API during development
 app.add_middleware(
@@ -360,8 +367,9 @@ class WebhookIngestResponse(BaseModel):
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_docs() -> Response:
     """Serve a styled Swagger UI page with project-themed UX."""
+    openapi_url = app.openapi_url or "/openapi.json"
     swagger_response = get_swagger_ui_html(
-        openapi_url=app.openapi_url,
+        openapi_url=openapi_url,
         title=f"{app.title} API Docs",
         oauth2_redirect_url="/docs/oauth2-redirect",
         swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
@@ -376,7 +384,7 @@ async def custom_swagger_docs() -> Response:
             "syntaxHighlight.theme": "monokai",
         },
     )
-    themed_html = swagger_response.body.decode("utf-8").replace(
+    themed_html = bytes(swagger_response.body).decode("utf-8").replace(
         "</head>",
         '<link rel="stylesheet" href="/static/docs-custom.css"></head>',
     )
