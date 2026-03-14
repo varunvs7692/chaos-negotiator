@@ -385,6 +385,10 @@
             return dashboardApiKey ? { 'X-API-Key': dashboardApiKey } : {};
           }, [dashboardApiKey]);
 
+          const homeUrl = React.useMemo(() => {
+            return dashboardApiKey ? `/home?api_key=${encodeURIComponent(dashboardApiKey)}` : '/home';
+          }, [dashboardApiKey]);
+
           const fetchNonRiskData = React.useCallback(async (isManual = false) => {
             if (isManual) {
               setRefreshing(true);
@@ -507,7 +511,7 @@
                 <h1>🚀 Chaos Negotiator Dashboard</h1>
                 <p>Intelligent Deployment Risk & Reliability Management</p>
                 <div className="header-actions">
-                  <a href="/home" className="header-link">Home</a>
+                  <a href={homeUrl} className="header-link">Home</a>
                   <a href="/docs" className="header-link" target="_blank" rel="noreferrer">API Docs</a>
                 </div>
                 <div className="header-meta-row">
@@ -542,7 +546,7 @@
                   <span className="quick-action-title">Open API Docs</span>
                   <span className="quick-action-desc">Try endpoints and inspect live JSON responses.</span>
                 </a>
-                <a href="/home" className="quick-action" target="_blank" rel="noreferrer">
+                <a href={homeUrl} className="quick-action" target="_blank" rel="noreferrer">
                   <span className="quick-action-title">Open Home Console</span>
                   <span className="quick-action-desc">Run demo scenarios and submit custom deployment payloads.</span>
                 </a>

@@ -486,7 +486,7 @@
     <section class="topbar reveal">
       <div class="nav-links">
         <a href="/docs" target="_blank" rel="noreferrer">Open API Docs</a>
-        <a href="/dashboard" target="_blank" rel="noreferrer">Open Dashboard</a>
+        <a href="/dashboard" target="_blank" rel="noreferrer" id="openDashboardLink">Open Dashboard</a>
         <a href="/health" target="_blank" rel="noreferrer">Open Health</a>
       </div>
       <div class="health-pill" id="healthPill">
@@ -507,7 +507,7 @@
         <span class="chip">Contract Guardrails</span>
       </div>
       <div class="quick-links">
-        <a class="quick-link" href="/dashboard" target="_blank" rel="noreferrer">
+        <a class="quick-link" href="/dashboard" target="_blank" rel="noreferrer" id="heroDashboardLink">
           <span class="title">Live Dashboard</span>
           <span class="desc">Real-time risk, canary progression, and outcome history in one view.</span>
         </a>
@@ -614,6 +614,8 @@
   </main>
 
   <script>
+    const AUTH_STORAGE_KEY = 'chaos_dashboard_api_key';
+    const queryParams = new URLSearchParams(window.location.search);
     const statusEl = document.getElementById('status');
     const statusBarEl = document.getElementById('statusBar');
     const outputEl = document.getElementById('output');
@@ -632,6 +634,47 @@
     const sumRiskScore = document.getElementById('sumRiskScore');
     const sumGuards = document.getElementById('sumGuards');
     const sumValidators = document.getElementById('sumValidators');
+    const apiKeyInput = document.getElementById('apiKey');
+    const openDashboardLink = document.getElementById('openDashboardLink');
+    const heroDashboardLink = document.getElementById('heroDashboardLink');
+
+    const queryApiKey = queryParams.get('api_key');
+    const storedApiKey = window.localStorage.getItem(AUTH_STORAGE_KEY) || '';
+    const initialApiKey = queryApiKey || storedApiKey;
+
+    if (queryApiKey) {
+      window.localStorage.setItem(AUTH_STORAGE_KEY, queryApiKey);
+    }
+
+    if (initialApiKey) {
+      apiKeyInput.value = initialApiKey;
+    }
+
+    function withApiKey(path) {
+      const apiKey = apiKeyInput.value.trim();
+      if (!apiKey) return path;
+      const url = new URL(path, window.location.origin);
+      url.searchParams.set('api_key', apiKey);
+      return `${url.pathname}${url.search}`;
+    }
+
+    function syncNavigationLinks() {
+      const dashboardUrl = withApiKey('/dashboard');
+      openDashboardLink.href = dashboardUrl;
+      heroDashboardLink.href = dashboardUrl;
+    }
+
+    apiKeyInput.addEventListener('input', () => {
+      const currentApiKey = apiKeyInput.value.trim();
+      if (currentApiKey) {
+        window.localStorage.setItem(AUTH_STORAGE_KEY, currentApiKey);
+      } else {
+        window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+      syncNavigationLinks();
+    });
+
+    syncNavigationLinks();
 
     function setStatus(message, tone = 'idle') {
       statusEl.textContent = message;
@@ -669,10 +712,15 @@
       setStatus('Running request...', 'idle');
       setLoading(true);
       try {
-        const apiKey = document.getElementById('apiKey').value.trim();
+        const apiKey = apiKeyInput.value.trim();
         const headers = {};
         if (body) headers['Content-Type'] = 'application/json';
         if (apiKey) headers['X-API-Key'] = apiKey;
+
+        if (apiKey) {
+          window.localStorage.setItem(AUTH_STORAGE_KEY, apiKey);
+          syncNavigationLinks();
+        }
 
         const res = await fetch(path, {
           method,
