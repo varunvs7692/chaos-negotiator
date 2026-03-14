@@ -6,6 +6,7 @@ import hmac
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, AsyncIterator, TypedDict, cast
 
@@ -24,7 +25,7 @@ from chaos_negotiator.agent import ChaosNegotiatorAgent
 from chaos_negotiator.main import get_example_context
 from chaos_negotiator.metrics.opentelemetry import configure_opentelemetry
 from chaos_negotiator.mcp.azure_mcp import AzureMCPClient
-from chaos_negotiator.models import DeploymentContext, DeploymentChange
+from chaos_negotiator.models import DeploymentContext, DeploymentChange, DeploymentOutcome
 
 # Configure OpenTelemetry
 configure_opentelemetry()
@@ -132,6 +133,66 @@ GLOBAL_STATE: GlobalState = {
 risk_monitor_task: asyncio.Task | None = None
 
 
+def _seed_demo_history_if_empty(agent: Any) -> None:
+    """Seed the history store with demo deployment outcomes when it is empty.
+
+    This ensures the dashboard KPI cards always show real computed values
+    rather than blanks or zero on a fresh deployment.
+    """
+    try:
+        if agent.history_store.recent(1):
+            return  # already has data — do nothing
+
+        now = datetime.utcnow()
+        seeds = [
+            DeploymentOutcome(
+                deployment_id="demo-payment-service-v1",
+                heuristic_score=58.0,
+                ml_score=62.0,
+                final_score=60.0,
+                actual_error_rate_percent=0.08,
+                actual_latency_change_percent=2.5,
+                rollback_triggered=False,
+                timestamp=now - timedelta(hours=6),
+            ),
+            DeploymentOutcome(
+                deployment_id="demo-auth-service-v2",
+                heuristic_score=45.0,
+                ml_score=50.0,
+                final_score=47.0,
+                actual_error_rate_percent=0.05,
+                actual_latency_change_percent=1.2,
+                rollback_triggered=False,
+                timestamp=now - timedelta(hours=12),
+            ),
+            DeploymentOutcome(
+                deployment_id="demo-api-gateway-v3",
+                heuristic_score=72.0,
+                ml_score=68.0,
+                final_score=70.0,
+                actual_error_rate_percent=0.15,
+                actual_latency_change_percent=4.0,
+                rollback_triggered=False,
+                timestamp=now - timedelta(hours=24),
+            ),
+            DeploymentOutcome(
+                deployment_id="demo-cache-service-v1",
+                heuristic_score=85.0,
+                ml_score=80.0,
+                final_score=83.0,
+                actual_error_rate_percent=1.2,
+                actual_latency_change_percent=18.0,
+                rollback_triggered=True,
+                timestamp=now - timedelta(hours=48),
+            ),
+        ]
+        for outcome in seeds:
+            agent.history_store.save(outcome)
+        logger.info("✅ Seeded %d demo deployment outcomes into history store", len(seeds))
+    except Exception as exc:
+        logger.warning("Could not seed demo history: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown logic."""
@@ -148,6 +209,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     if agent:
         await update_risk_state()
+        # Seed demo history on first start so KPI cards show real data
+        _seed_demo_history_if_empty(agent)
 
     # Start background risk monitoring task
     logger.info("Starting background risk monitoring task...")
